@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+.env
+.env.*
+!.env.example
+out/
+dist/
+dist-exe/
+*.log
+.DS_Store
+.cache/
+.claude/

@@ -1,0 +1,247 @@
+import React, { useState, useEffect } from 'react'
+import { NavLink } from 'react-router-dom'
+
+const navItems = [
+  {
+    to: '/',
+    label: 'Dashboard',
+    shortcut: null,
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" />
+      </svg>
+    )
+  },
+  {
+    to: '/sales-invoice',
+    label: 'Sales Invoice',
+    shortcut: 'F8',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    )
+  },
+  {
+    to: '/purchase-entry',
+    label: 'Purchase Entry',
+    shortcut: 'F9',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+      </svg>
+    )
+  },
+  {
+    to: '/ledgers',
+    label: 'Ledger Master',
+    shortcut: null,
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    )
+  },
+  {
+    to: '/items',
+    label: 'Item Master',
+    shortcut: null,
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+    )
+  },
+  {
+    to: '/reports',
+    label: 'Reports',
+    shortcut: null,
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    )
+  },
+  {
+    to: '/settings',
+    label: 'Settings',
+    shortcut: null,
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    )
+  }
+]
+
+export default function Sidebar({ onCollapse }) {
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('iw-sidebar') === 'collapsed' } catch { return false }
+  })
+
+  function toggle() {
+    setCollapsed(v => {
+      const next = !v
+      localStorage.setItem('iw-sidebar', next ? 'collapsed' : 'expanded')
+      onCollapse?.(next)
+      return next
+    })
+  }
+
+  // Ctrl+\ shortcut
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.ctrlKey && e.key === '\\') { e.preventDefault(); toggle() }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  return (
+    <aside
+      className="h-screen flex flex-col border-r shrink-0"
+      style={{
+        width: collapsed ? '64px' : '220px',
+        background: 'var(--bg-sidebar)',
+        borderColor: 'var(--border-color)',
+        transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1)',
+        overflow: 'hidden',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+      }}
+    >
+      {/* ── Logo + Toggle ── */}
+      <div
+        className="flex items-center border-b shrink-0"
+        style={{
+          height: 56,
+          padding: collapsed ? '0 12px' : '0 16px',
+          borderColor: 'var(--border-color)',
+          justifyContent: collapsed ? 'center' : 'space-between',
+          transition: 'padding 0.3s ease',
+        }}
+      >
+        {!collapsed && (
+          <div className="flex items-center gap-2.5 animate-fade-in">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center shadow-lg shadow-teal-500/25 shrink-0">
+              <span className="text-white font-bold text-xs">IW</span>
+            </div>
+            <div className="overflow-hidden">
+              <h1 className="text-[13px] font-bold tracking-wide leading-none" style={{ color: 'var(--text-primary)' }}>INTERIORS</h1>
+              <p className="text-[9px] font-semibold tracking-[0.22em] text-teal-500 mt-0.5">WORD</p>
+            </div>
+          </div>
+        )}
+
+        {collapsed && (
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center shadow-lg shadow-teal-500/25 animate-fade-in">
+            <span className="text-white font-bold text-xs">IW</span>
+          </div>
+        )}
+
+        {!collapsed && (
+          <button
+            onClick={toggle}
+            title="Collapse sidebar (Ctrl+\\)"
+            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-slate-100 transition-colors ml-1"
+            style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+          </button>
+        )}
+
+        {collapsed && (
+          <button
+            onClick={toggle}
+            title="Expand sidebar (Ctrl+\\)"
+            className="absolute bottom-3 left-0 right-0 mx-auto w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 transition-colors"
+            style={{
+              position: 'absolute',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              bottom: '16px',
+              color: 'var(--text-muted)',
+            }}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* ── Navigation ── */}
+      <nav
+        className="flex-1 py-2 overflow-y-auto space-y-0.5"
+        style={{ padding: collapsed ? '8px 8px 60px' : '8px 8px 8px' }}
+      >
+        {navItems.map((item, idx) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === '/'}
+            title={collapsed ? `${item.label}${item.shortcut ? ` (${item.shortcut})` : ''}` : ''}
+            className={({ isActive }) =>
+              `group flex items-center gap-3 rounded-xl text-[13px] font-medium transition-all duration-200 relative overflow-hidden animate-fade-in stagger-${idx + 1}
+              ${collapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'}
+              ${isActive
+                ? 'bg-teal-50 text-teal-700'
+                : 'hover:bg-slate-50 text-slate-500 hover:text-slate-800'
+              }`
+            }
+            style={({ isActive }) => ({
+              color: isActive ? '#0f766e' : 'var(--text-secondary)',
+              background: isActive ? 'rgba(13,148,136,0.08)' : undefined,
+            })}
+          >
+            {({ isActive }) => (
+              <>
+                {isActive && !collapsed && (
+                  <span className="nav-active-indicator" />
+                )}
+                {isActive && collapsed && (
+                  <span
+                    className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r-full bg-teal-500"
+                  />
+                )}
+                <span className={`shrink-0 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
+                  {item.icon}
+                </span>
+                {!collapsed && (
+                  <span className="flex-1 truncate">{item.label}</span>
+                )}
+                {!collapsed && item.shortcut && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-100 text-red-500 border border-slate-200 shrink-0">
+                    {item.shortcut}
+                  </span>
+                )}
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* ── Footer ── */}
+      {!collapsed && (
+        <div
+          className="px-4 py-3 border-t shrink-0 animate-fade-in"
+          style={{ borderColor: 'var(--border-color)' }}
+        >
+          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span>Database Connected</span>
+          </div>
+        </div>
+      )}
+
+      {collapsed && (
+        <div className="py-3 flex justify-center shrink-0 pb-16">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Database Connected" />
+        </div>
+      )}
+    </aside>
+  )
+}
