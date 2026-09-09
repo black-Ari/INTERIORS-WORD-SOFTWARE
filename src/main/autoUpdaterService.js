@@ -5,7 +5,7 @@ import path from 'path';
 import { app } from 'electron';
 import { spawn } from 'child_process';
 
-const GITHUB_REPO = 'interiorsworlds-blip/INTERIORS-WORD-SOFTWARE';
+const GITHUB_REPO = 'black-Ari/INTERIORS-WORD-SOFTWARE';
 
 function compareVersions(v1, v2) {
   const clean1 = (v1 || '').replace(/^[vV]/, '').trim();
