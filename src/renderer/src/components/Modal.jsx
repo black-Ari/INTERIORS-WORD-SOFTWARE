@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 
 /**
- * Reusable modal dialog with glassmorphism, focus trap, and Escape-to-close.
+ * Reusable modal dialog with portal rendering, perfect screen-centering,
+ * glassmorphism, responsive auto-adjust, focus trap, and Escape-to-close.
  *
  * Props:
  *  - isOpen: boolean
@@ -80,43 +82,64 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
 
   if (!isOpen) return null
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
-      className="fixed inset-0 z-[1000] flex items-center justify-center p-4 animate-fade-in"
-      style={{ backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto animate-fade-in"
+      style={{
+        backgroundColor: 'rgba(10, 15, 29, 0.72)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)'
+      }}
     >
       <div
         ref={panelRef}
         className={`
           w-full ${sizeClasses[size] || sizeClasses.md}
-          glass-panel p-0 shadow-2xl shadow-black/40
+          glass-panel p-0 rounded-2xl shadow-2xl
           animate-scale-in
           flex flex-col overflow-hidden
+          my-auto
         `}
-        style={{ maxHeight: 'calc(100vh - 2rem)' }}
+        style={{
+          background: 'var(--bg-card)',
+          borderColor: 'var(--border-color)',
+          maxHeight: 'min(90vh, 860px)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--border-color)'
+        }}
       >
         {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/50 rounded-t-xl">
-          <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400
-                       hover:text-slate-800 hover:bg-slate-200/50 transition-colors"
-            aria-label="Close"
+        {title && (
+          <div
+            className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b rounded-t-2xl"
+            style={{ borderColor: 'var(--border-color)', background: 'var(--bg-card)' }}
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+            <h2 className="text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+              {title}
+            </h2>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+              style={{ color: 'var(--text-muted)' }}
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto px-6 py-5"
+          style={{ color: 'var(--text-primary)' }}
+        >
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

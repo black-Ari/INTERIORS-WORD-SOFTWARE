@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 const shortcuts = [
   { group: 'Navigation', items: [
@@ -38,14 +39,14 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
 
   if (!isOpen) return null
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[999] flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-fade-in"
+      style={{ background: 'rgba(10, 15, 29, 0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
-        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl animate-scale-in"
+        className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl animate-scale-in my-auto"
         style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
       >
         {/* Header */}
@@ -61,22 +62,23 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
               </svg>
             </div>
             <div>
-              <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>Keyboard Shortcuts</h2>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>All available shortcuts at a glance</p>
+              <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                Keyboard Shortcuts
+              </h2>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Press any shortcut key anywhere in the app
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-slate-100"
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-white/10"
             style={{ color: 'var(--text-muted)' }}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            ✕
           </button>
         </div>
 
-        {/* Shortcut groups */}
         <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
           {shortcuts.map((group) => (
             <div key={group.group} className="space-y-1">
@@ -122,6 +124,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
           Press <kbd style={{ color: '#ef4444', fontWeight: 700 }}>Escape</kbd> or click outside to close
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

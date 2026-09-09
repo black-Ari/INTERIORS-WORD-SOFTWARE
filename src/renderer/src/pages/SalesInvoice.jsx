@@ -349,13 +349,22 @@ export default function SalesInvoice() {
       if (!savedId) return
       
       const phone = (selectedCustomer.phone || '').replace(/[^0-9]/g, '')
+      const msg = `Hello ${selectedCustomer.name || ''}, your invoice #${voucherNumber} from INTERIORS WORD has been generated. Amount: Rs. ${calculations.netAmount}. Thank you!`
+
+      try {
+        const waStatus = await window.api?.wa?.getStatus()
+        if (waStatus?.status === 'connected') {
+          await window.api?.wa?.sendDirect({ to: phone, text: msg })
+          toast.success(`Invoice sent directly via WhatsApp to +${phone}!`)
+          return
+        }
+      } catch {}
+
       if (phone) {
         const formattedPhone = phone.length === 10 ? `91${phone}` : phone
-        const msg = encodeURIComponent(`Hello ${selectedCustomer.name || ''}, your invoice #${voucherNumber} has been generated. Amount: Rs. ${calculations.netAmount}`)
-        window.open(`https://wa.me/${formattedPhone}?text=${msg}`, '_blank')
+        window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
+        toast.success('Opening WhatsApp chat...')
       }
-      toast.success('Opening WB Manager popup...')
-      window.api?.openWBManager?.()
     } catch (e) {
       toast.error(e.message || 'WhatsApp failed')
     }

@@ -28,7 +28,7 @@ export function useKeyboardShortcuts() {
 
       if (e.key === 'F10') {
         e.preventDefault()
-        window.api?.openWBManager?.()
+        navigate('/whatsapp')
         return
       }
 

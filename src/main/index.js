@@ -1,9 +1,27 @@
 'use strict';
 
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import electronPkg from 'electron';
+import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import os from 'os';
+
+const electron = electronPkg;
+// Self-healing bootstrap: if spawned with ELECTRON_RUN_AS_NODE or in node CLI mode, re-spawn cleanly in GUI mode
+if (typeof electron === 'string' || !electron.app) {
+  const electronExe = typeof electron === 'string' ? electron : process.execPath;
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
+  const child = spawn(electronExe, [process.cwd(), ...process.argv.slice(2)], {
+    env,
+    detached: true,
+    stdio: 'ignore'
+  });
+  child.unref();
+  process.exit(0);
+}
+
+const { app, BrowserWindow, ipcMain, shell, dialog } = electron;
 
 process.on('uncaughtException', (err) => {
   import('fs').then(fs => {
@@ -39,14 +57,11 @@ import {
   globalSearch
 } from './database.js';
 import { generateInvoicePDF, printInvoice } from './pdfService.js';
-import {
-  initializeWhatsApp,
-  disconnectWhatsApp,
-  getWhatsAppStatus,
-  sendToWhatsApp
-} from './whatsappService.js';
+import WhatsAppService from './whatsappService.js';
+import WhatsAppStore from './whatsappStore.js';
+import { generateReply, detectProvider, PROVIDER_NAMES, DEFAULT_MODELS } from './whatsappAiReply.js';
+import AutoUpdaterService from './autoUpdaterService.js';
 import fs from 'fs';
-import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,9 +70,11 @@ const __dirname = path.dirname(__filename);
 // Globals
 // ---------------------------------------------------------------------------
 
-let mainWindow  = null;
-let splashWin   = null;
-let db          = null;
+let mainWindow     = null;
+let splashWin      = null;
+let db             = null;
+let waService      = null;
+let updaterService = null;
 
 const BILLS_FOLDER_NAME = 'InteriorsWord_Bills';
 
@@ -446,26 +463,11 @@ function registerIpcHandlers() {
   });
 
   // ── WhatsApp ─────────────────────────────────────────────────────────────
-  ipcMain.handle('whatsapp:status', () => getWhatsAppStatus());
+  ipcMain.handle('whatsapp:status', () => ({ status: 'ready' }));
 
-  ipcMain.handle('whatsapp:connect', async (event) => {
-    try {
-      const result = await initializeWhatsApp(app.getPath('userData'), (state) => {
-        if (!event.sender.isDestroyed()) event.sender.send('whatsapp:status', state);
-      });
-      return { success: true, data: result };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
+  ipcMain.handle('whatsapp:connect', async () => ({ success: true }));
 
-  ipcMain.handle('whatsapp:disconnect', async () => {
-    try {
-      return { success: true, data: await disconnectWhatsApp() };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
+  ipcMain.handle('whatsapp:disconnect', async () => ({ success: true }));
 
   ipcMain.handle('whatsapp:send', async (_event, voucherId, phone) => {
     try {
@@ -482,17 +484,7 @@ function registerIpcHandlers() {
         db.prepare('UPDATE vouchers SET pdf_path = ? WHERE id = ?').run(pdfPath, voucherId);
       }
 
-      const phoneNumber = phone || voucher.ledger_phone;
-      if (!phoneNumber) {
-        return { success: false, error: 'No phone number available.' };
-      }
-
-      const result = await sendToWhatsApp(
-        pdfPath,
-        phoneNumber,
-        `Hello ${voucher.ledger_name || ''}, your bill ${voucher.voucher_number || ''} is attached.`
-      );
-      return { success: true, data: result };
+      return { success: true, data: { pdfPath, voucher } };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -531,16 +523,24 @@ function registerIpcHandlers() {
         }
       }
 
-      const electronExe = path.join(wbDir, 'node_modules', 'electron', 'dist', 'electron.exe');
-      if (!fs.existsSync(wbDir)) {
-        return { success: false, error: `WB Manager directory not found at: ${wbDir}` };
+      const candidateExes = [
+        path.join(wbDir, 'dist', 'WB Manager 1.0.0.exe'),
+        path.join(wbDir, 'dist', 'win-unpacked', 'WB Manager.exe'),
+        path.join(wbDir, 'node_modules', 'electron', 'dist', 'electron.exe')
+      ];
+      const exeToRun = candidateExes.find(p => fs.existsSync(p));
+      const isDev = exeToRun && exeToRun.endsWith('electron.exe');
+      const exeArgs = isDev ? ['.'] : [];
+
+      if (!exeToRun) {
+        return { success: false, error: `WB Manager executable not found in: ${wbDir}` };
       }
 
       // Strip ELECTRON_RUN_AS_NODE so Electron boots cleanly in GUI window mode
       const env = { ...process.env };
       delete env.ELECTRON_RUN_AS_NODE;
 
-      const child = spawn(electronExe, ['.'], {
+      const child = spawn(exeToRun, exeArgs, {
         cwd: wbDir,
         env,
         detached: true,
@@ -618,6 +618,160 @@ function registerIpcHandlers() {
       return { success: false, error: err.message };
     }
   });
+
+  // -------------------------------------------------------------------------
+  // Native WhatsApp Business System IPCs
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle('wa:get-status', () => {
+    return waService ? waService.getStatus() : { status: 'disconnected', number: '' };
+  });
+
+  ipcMain.handle('wa:connect', async () => {
+    if (waService) {
+      waService.connect().catch((err) => {
+        waService.log(`Connection error: ${err.message}`, 'error');
+      });
+      return { success: true };
+    }
+    return { success: false, error: 'Service not initialized' };
+  });
+
+  ipcMain.handle('wa:logout', async () => {
+    if (waService) {
+      await waService.logout();
+      return { success: true };
+    }
+    return { success: false };
+  });
+
+  ipcMain.handle('wa:reset-session', async () => {
+    if (waService) {
+      await waService.resetSession();
+      return { success: true };
+    }
+    return { success: false };
+  });
+
+  ipcMain.handle('wa:send-bulk', async (_e, payload) => {
+    if (!waService) throw new Error('WhatsApp service not initialized');
+    return waService.sendBulk(payload, (progress) => {
+      mainWindow?.webContents?.send('wa:bulk-progress', progress);
+    });
+  });
+
+  ipcMain.handle('wa:send-direct', async (_e, payload) => {
+    if (!waService) throw new Error('WhatsApp service not initialized');
+    return waService.sendDirectMessage(payload);
+  });
+
+  ipcMain.handle('wa:get-auto-reply', () => {
+    return WhatsAppStore.getAutoReply();
+  });
+
+  ipcMain.handle('wa:save-auto-reply', (_e, settings) => {
+    const updated = WhatsAppStore.saveAutoReply(settings);
+    if (waService) {
+      waService.updateAutoReplySettings(updated);
+    }
+    return updated;
+  });
+
+  ipcMain.handle('wa:detect-provider', (_e, { apiKey }) => {
+    const provider = detectProvider(apiKey);
+    return {
+      provider,
+      name: PROVIDER_NAMES[provider] || 'Unknown',
+      defaultModel: DEFAULT_MODELS[provider] || ''
+    };
+  });
+
+  ipcMain.handle('wa:preview-ai-reply', async (_e, payload) => {
+    const autoReply = WhatsAppStore.getAutoReply();
+    const ai = autoReply.ai || {};
+    return generateReply({
+      apiKey: payload.apiKey || ai.apiKey,
+      model: payload.model || ai.model,
+      persona: payload.persona || ai.persona,
+      businessInfo: payload.businessInfo || ai.businessInfo,
+      menuPricing: payload.menuPricing || ai.menuPricing,
+      history: [],
+      incomingText: payload.incomingText || 'Hello, what are your curtain and wallpaper rates?'
+    });
+  });
+
+  ipcMain.handle('wa:get-orders', () => {
+    return WhatsAppStore.getOrders();
+  });
+
+  ipcMain.handle('wa:update-order-status', (_e, { orderId, status }) => {
+    return WhatsAppStore.updateOrderStatus(orderId, status);
+  });
+
+  ipcMain.handle('wa:confirm-order', async (_e, { orderId }) => {
+    if (!waService) throw new Error('WhatsApp service not initialized');
+    return waService.confirmOrder(orderId);
+  });
+
+  ipcMain.handle('wa:reject-order', async (_e, { orderId, reason }) => {
+    if (!waService) throw new Error('WhatsApp service not initialized');
+    return waService.rejectOrder(orderId, reason);
+  });
+
+  ipcMain.handle('wa:delete-order', (_e, { orderId }) => {
+    WhatsAppStore.deleteOrder(orderId);
+    return { success: true };
+  });
+
+  ipcMain.handle('wa:get-alerts', () => {
+    return WhatsAppStore.getAlerts();
+  });
+
+  ipcMain.handle('wa:dismiss-alert', (_e, { alertId }) => {
+    WhatsAppStore.dismissAlert(alertId);
+    return { success: true };
+  });
+
+  ipcMain.handle('wa:reply-to-alert', async (_e, { jid, text }) => {
+    if (!waService) throw new Error('WhatsApp service not initialized');
+    return waService.sendDirectMessage({ to: jid, text });
+  });
+
+  ipcMain.handle('wa:get-customer-contacts', () => {
+    if (!db) return [];
+    try {
+      const rows = db.prepare(`
+        SELECT id, name, phone, city, address, current_balance
+        FROM ledgers
+        WHERE group_name = 'Sundry Debtors' AND phone IS NOT NULL AND phone != ''
+        ORDER BY name ASC
+      `).all();
+      return rows;
+    } catch (err) {
+      console.error('Failed to get customer contacts:', err);
+      return [];
+    }
+  });
+  // -------------------------------------------------------------------------
+  // Auto-Updater System IPCs (GitHub Releases)
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle('update:check', async () => {
+    if (!updaterService) return { hasUpdate: false };
+    return updaterService.checkForUpdates();
+  });
+
+  ipcMain.handle('update:download', async (_e, { downloadUrl } = {}) => {
+    if (!updaterService) throw new Error('Updater service not initialized');
+    return updaterService.downloadUpdate(downloadUrl, (progress) => {
+      mainWindow?.webContents?.send('update:progress', progress);
+    });
+  });
+
+  ipcMain.handle('update:install', async (_e, { filePath } = {}) => {
+    if (!updaterService) throw new Error('Updater service not initialized');
+    return updaterService.installUpdate(filePath);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -628,10 +782,44 @@ app.whenReady().then(() => {
   const dbPath = getDbPath();
   db = initDatabase(dbPath);
 
+  // Initialize native WhatsApp service
+  waService = new WhatsAppService({
+    onQr: (dataUrl) => mainWindow?.webContents?.send('wa:qr', dataUrl),
+    onStatus: (status, info) => mainWindow?.webContents?.send('wa:status', { status, info }),
+    onLog: (entry) => mainWindow?.webContents?.send('wa:log', entry),
+    onBulkProgress: (progress) => mainWindow?.webContents?.send('wa:bulk-progress', progress),
+    onOrderSummary: (order) => {
+      WhatsAppStore.saveOrder(order);
+      mainWindow?.webContents?.send('wa:order-summary', order);
+    },
+    onOwnerAlert: (alert) => {
+      WhatsAppStore.saveAlert(alert);
+      mainWindow?.webContents?.send('wa:owner-alert', alert);
+    }
+  });
+
+  // Initialize background Auto-Updater
+  updaterService = new AutoUpdaterService({
+    onUpdateAvailable: (info) => {
+      mainWindow?.webContents?.send('update:available', info);
+    },
+    onUpdateProgress: (progress) => {
+      mainWindow?.webContents?.send('update:progress', progress);
+    },
+    onUpdateDownloaded: (info) => {
+      mainWindow?.webContents?.send('update:downloaded', info);
+    }
+  });
+
   // Show splash first, then start main window
   createSplashWindow();
   createMainWindow();
   registerIpcHandlers();
+
+  // Check for updates automatically 10s after startup
+  setTimeout(() => {
+    updaterService?.checkForUpdates().catch(() => {});
+  }, 10000);
 
   // macOS: re-create window when dock icon is clicked
   app.on('activate', () => {

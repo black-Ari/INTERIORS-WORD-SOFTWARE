@@ -14,6 +14,7 @@ const LedgerMaster  = React.lazy(() => import('./pages/LedgerMaster'))
 const ItemMaster    = React.lazy(() => import('./pages/ItemMaster'))
 const Reports       = React.lazy(() => import('./pages/Reports'))
 const Settings      = React.lazy(() => import('./pages/Settings'))
+const WhatsAppManager = React.lazy(() => import('./pages/WhatsAppManager'))
 
 function PageLoader() {
   return (
@@ -53,6 +54,7 @@ function AppShell({ onOpenShortcuts }) {
             <Route path="/items"           element={<ItemMaster />} />
             <Route path="/reports"         element={<Reports />} />
             <Route path="/settings"        element={<Settings />} />
+            <Route path="/whatsapp"        element={<WhatsAppManager />} />
           </Routes>
         </Suspense>
       </ErrorBoundary>

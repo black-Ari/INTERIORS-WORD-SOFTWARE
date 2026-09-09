@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DataTable from '../components/DataTable'
 import MiniChart from '../components/MiniChart'
-import WhatsAppConnection from '../components/WhatsAppConnection'
 import { formatCurrency, formatDate } from '../utils/formatters'
 import { useToast } from '../components/Toast'
 
