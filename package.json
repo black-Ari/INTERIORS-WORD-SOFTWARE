@@ -61,7 +61,7 @@
       "**/*.node"
     ],
     "extraMetadata": {
-      "main": "./out/main/index.js"
+      "main": "out/main/index.js"
     }
   }
 }

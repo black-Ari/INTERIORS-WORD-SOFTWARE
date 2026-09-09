@@ -1,32 +1,15 @@
 'use strict';
 
-import electronPkg from 'electron';
-import { spawn } from 'child_process';
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import os from 'os';
-
-const electron = electronPkg;
-// Self-healing bootstrap: if spawned with ELECTRON_RUN_AS_NODE or in node CLI mode, re-spawn cleanly in GUI mode
-if (typeof electron === 'string' || !electron.app) {
-  const electronExe = typeof electron === 'string' ? electron : process.execPath;
-  const env = { ...process.env };
-  delete env.ELECTRON_RUN_AS_NODE;
-  const child = spawn(electronExe, [process.cwd(), ...process.argv.slice(2)], {
-    env,
-    detached: true,
-    stdio: 'ignore'
-  });
-  child.unref();
-  process.exit(0);
-}
-
-const { app, BrowserWindow, ipcMain, shell, dialog } = electron;
+import fs from 'fs';
 
 process.on('uncaughtException', (err) => {
-  import('fs').then(fs => {
-    fs.writeFileSync(path.join(os.tmpdir(), 'interiors_word_crash.log'), err.stack || err.toString());
-  });
+  try {
+    fs.writeFileSync(path.join(os.tmpdir(), 'interiors_word_crash.log'), (err && (err.stack || err.toString())) || 'Unknown error');
+  } catch (_) {}
 });
 import {
   initDatabase,
@@ -61,7 +44,6 @@ import WhatsAppService from './whatsappService.js';
 import WhatsAppStore from './whatsappStore.js';
 import { generateReply, detectProvider, PROVIDER_NAMES, DEFAULT_MODELS } from './whatsappAiReply.js';
 import AutoUpdaterService from './autoUpdaterService.js';
-import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -192,17 +174,23 @@ function createMainWindow() {
 
   mainWindow = new BrowserWindow(windowOpts);
 
-  mainWindow.once('ready-to-show', () => {
-    // Close splash with a short delay for polish
-    setTimeout(() => {
-      if (splashWin && !splashWin.isDestroyed()) {
-        splashWin.close();
-        splashWin = null;
-      }
+  const showMainWindow = () => {
+    if (splashWin && !splashWin.isDestroyed()) {
+      splashWin.close();
+      splashWin = null;
+    }
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
       mainWindow.show();
       mainWindow.focus();
-    }, 600);
+    }
+  };
+
+  mainWindow.once('ready-to-show', () => {
+    setTimeout(showMainWindow, 500);
   });
+
+  // Failsafe: if ready-to-show takes too long, reveal window anyway after 3.5s
+  setTimeout(showMainWindow, 3500);
 
   // Load renderer
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -741,9 +729,9 @@ function registerIpcHandlers() {
     if (!db) return [];
     try {
       const rows = db.prepare(`
-        SELECT id, name, phone, city, address, current_balance
+        SELECT id, name, phone, address
         FROM ledgers
-        WHERE group_name = 'Sundry Debtors' AND phone IS NOT NULL AND phone != ''
+        WHERE type = 'customer' AND phone IS NOT NULL AND phone != ''
         ORDER BY name ASC
       `).all();
       return rows;
@@ -778,71 +766,97 @@ function registerIpcHandlers() {
 // App Lifecycle
 // ---------------------------------------------------------------------------
 
-app.whenReady().then(() => {
-  const dbPath = getDbPath();
-  db = initDatabase(dbPath);
+const gotTheLock = app.requestSingleInstanceLock();
 
-  // Initialize native WhatsApp service
-  waService = new WhatsAppService({
-    onQr: (dataUrl) => mainWindow?.webContents?.send('wa:qr', dataUrl),
-    onStatus: (status, info) => mainWindow?.webContents?.send('wa:status', { status, info }),
-    onLog: (entry) => mainWindow?.webContents?.send('wa:log', entry),
-    onBulkProgress: (progress) => mainWindow?.webContents?.send('wa:bulk-progress', progress),
-    onOrderSummary: (order) => {
-      WhatsAppStore.saveOrder(order);
-      mainWindow?.webContents?.send('wa:order-summary', order);
-    },
-    onOwnerAlert: (alert) => {
-      WhatsAppStore.saveAlert(alert);
-      mainWindow?.webContents?.send('wa:owner-alert', alert);
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
     }
   });
 
-  // Initialize background Auto-Updater
-  updaterService = new AutoUpdaterService({
-    onUpdateAvailable: (info) => {
-      mainWindow?.webContents?.send('update:available', info);
-    },
-    onUpdateProgress: (progress) => {
-      mainWindow?.webContents?.send('update:progress', progress);
-    },
-    onUpdateDownloaded: (info) => {
-      mainWindow?.webContents?.send('update:downloaded', info);
+  app.whenReady().then(() => {
+    try {
+      const dbPath = getDbPath();
+      db = initDatabase(dbPath);
+    } catch (err) {
+      console.error('Failed to initialize database:', err);
+    }
+
+    // Initialize native WhatsApp service
+    try {
+      waService = new WhatsAppService({
+        onQr: (dataUrl) => mainWindow?.webContents?.send('wa:qr', dataUrl),
+        onStatus: (status, info) => mainWindow?.webContents?.send('wa:status', { status, info }),
+        onLog: (entry) => mainWindow?.webContents?.send('wa:log', entry),
+        onBulkProgress: (progress) => mainWindow?.webContents?.send('wa:bulk-progress', progress),
+        onOrderSummary: (order) => {
+          WhatsAppStore.saveOrder(order);
+          mainWindow?.webContents?.send('wa:order-summary', order);
+        },
+        onOwnerAlert: (alert) => {
+          WhatsAppStore.saveAlert(alert);
+          mainWindow?.webContents?.send('wa:owner-alert', alert);
+        }
+      });
+    } catch (err) {
+      console.error('Failed to initialize WhatsApp service:', err);
+    }
+
+    // Initialize background Auto-Updater
+    try {
+      updaterService = new AutoUpdaterService({
+        onUpdateAvailable: (info) => {
+          mainWindow?.webContents?.send('update:available', info);
+        },
+        onUpdateProgress: (progress) => {
+          mainWindow?.webContents?.send('update:progress', progress);
+        },
+        onUpdateDownloaded: (info) => {
+          mainWindow?.webContents?.send('update:downloaded', info);
+        }
+      });
+    } catch (err) {
+      console.error('Failed to initialize AutoUpdater service:', err);
+    }
+
+    // Show splash first, then start main window
+    createSplashWindow();
+    createMainWindow();
+    registerIpcHandlers();
+
+    // Check for updates automatically 10s after startup
+    setTimeout(() => {
+      updaterService?.checkForUpdates().catch(() => {});
+    }, 10000);
+
+    // macOS: re-create window when dock icon is clicked
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createMainWindow();
+      }
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    // Close the database connection
+    if (db) {
+      try { db.close(); } catch (_) { /* ignore */ }
+    }
+    // On macOS apps stay open until Cmd+Q
+    if (process.platform !== 'darwin') {
+      app.quit();
     }
   });
 
-  // Show splash first, then start main window
-  createSplashWindow();
-  createMainWindow();
-  registerIpcHandlers();
-
-  // Check for updates automatically 10s after startup
-  setTimeout(() => {
-    updaterService?.checkForUpdates().catch(() => {});
-  }, 10000);
-
-  // macOS: re-create window when dock icon is clicked
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+  app.on('before-quit', () => {
+    if (db) {
+      try { db.close(); } catch (_) { /* ignore */ }
+      db = null;
     }
   });
-});
-
-app.on('window-all-closed', () => {
-  // Close the database connection
-  if (db) {
-    try { db.close(); } catch (_) { /* ignore */ }
-  }
-  // On macOS apps stay open until Cmd+Q
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
-
-app.on('before-quit', () => {
-  if (db) {
-    try { db.close(); } catch (_) { /* ignore */ }
-    db = null;
-  }
-});
+}

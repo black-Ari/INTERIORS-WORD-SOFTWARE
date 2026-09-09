@@ -349,7 +349,7 @@ export default function SalesInvoice() {
       if (!savedId) return
       
       const phone = (selectedCustomer.phone || '').replace(/[^0-9]/g, '')
-      const msg = `Hello ${selectedCustomer.name || ''}, your invoice #${voucherNumber} from INTERIORS WORD has been generated. Amount: Rs. ${calculations.netAmount}. Thank you!`
+      const msg = `Hello ${selectedCustomer.name || ''}, your invoice #${voucherNumber} from INTERIORS WORD has been generated. Amount: Rs. ${netAmount}. Thank you!`
 
       try {
         const waStatus = await window.api?.wa?.getStatus()

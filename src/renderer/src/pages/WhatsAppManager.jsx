@@ -194,8 +194,8 @@ export default function WhatsAppManager() {
       const rows = customers.map((c) => ({
         A: c.phone || '',
         B: c.name || '',
-        C: c.current_balance ? `Rs ${c.current_balance}` : '',
-        D: c.city || ''
+        C: '',
+        D: c.address || ''
       }))
 
       setGridData(rows)

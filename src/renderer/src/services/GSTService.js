@@ -73,9 +73,13 @@ export function calculateInvoiceTax(lineItems, isInterstate) {
     const qty = Number(item.quantity) || 0
     const rate = Number(item.rate) || 0
     const discountPct = Number(item.discount_percent) || 0
-    const lineAmount = qty * rate
-    const discountAmount = Math.round((lineAmount * discountPct / 100) * 100) / 100
-    const taxableAmount = Math.round((lineAmount - discountAmount) * 100) / 100
+    const calculatedLineAmount = qty * rate
+    const hasExplicitAmount = item.amount !== undefined && item.amount !== null && item.amount !== ''
+    const lineAmount = hasExplicitAmount ? Number(item.amount) || 0 : calculatedLineAmount
+    const discountAmount = hasExplicitAmount
+      ? Math.round((calculatedLineAmount - lineAmount) * 100) / 100
+      : Math.round((calculatedLineAmount * discountPct / 100) * 100) / 100
+    const taxableAmount = Math.round(lineAmount * 100) / 100
 
     subtotal += taxableAmount
 
