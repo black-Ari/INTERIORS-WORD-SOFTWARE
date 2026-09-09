@@ -26,6 +26,12 @@ export function useKeyboardShortcuts() {
         return
       }
 
+      if (e.key === 'F10') {
+        e.preventDefault()
+        window.api?.openWBManager?.()
+        return
+      }
+
       if (e.altKey && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault()
         window.dispatchEvent(new CustomEvent('app:add-contact'))

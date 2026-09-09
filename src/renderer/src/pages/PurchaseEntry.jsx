@@ -243,7 +243,7 @@ export default function PurchaseEntry() {
       // Automatically generate & save PDF in background without opening print dialog
       try {
         const result = await api.generatePDF(saved.id)
-        if (result?.success) {
+        if (result) {
           toast.success('Bill saved as PDF successfully!')
         }
       } catch (pdfErr) {
@@ -258,13 +258,24 @@ export default function PurchaseEntry() {
 
   async function handleCreateVendor() {
     try {
-      const id = await api.ledgerCreate({ ...newVendor, type: 'vendor' })
+      const created = await api.ledgerCreate({ ...newVendor, type: 'vendor' })
       toast.success('Vendor created')
       setShowVendorModal(false)
-      loadInitialData()
-      handleVendorSelect(id)
+      const freshLedgers = await api.ledgerList()
+      setLedgers(freshLedgers || [])
+      const newId = created?.id || created
+      if (newId) {
+        const vendor = (freshLedgers || []).find(l => l.id === Number(newId))
+        setSelectedVendor(vendor)
+        const isInterstate = (vendor?.state_code && companyStateCode && vendor.state_code !== companyStateCode) ? 1 : 0
+        setVoucher(prev => ({
+          ...prev,
+          ledger_id: Number(newId),
+          is_interstate: isInterstate
+        }))
+      }
     } catch(e) {
-      toast.error('Failed to create vendor')
+      toast.error('Failed to create vendor: ' + (e.message || ''))
     }
   }
 

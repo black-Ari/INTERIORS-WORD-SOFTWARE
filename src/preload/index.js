@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('whatsapp:status', listener);
   },
   openPDFFolder: () => invokeApi('app:open-pdf-folder'),
+  openWBManager: () => invokeApi('app:open-wb-manager'),
   backupDatabase: () => invokeApi('app:backup-database'),
   restoreDatabase: () => invokeApi('app:restore-database'),
   getVersion: () => invokeApi('app:get-version')

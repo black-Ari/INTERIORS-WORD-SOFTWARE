@@ -829,6 +829,36 @@ function dashboardStats(db, filters = {}) {
     ORDER BY v.id DESC LIMIT 10
   `).all(dateFrom, dateTo);
 
+  const monthsMap = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const now = new Date();
+  const last6Months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const mName = monthsMap[d.getMonth()];
+    last6Months.push({ ym, label: mName, value: 0 });
+  }
+
+  try {
+    const trendRows = db.prepare(`
+      SELECT strftime('%Y-%m', date) AS ym, COALESCE(SUM(net_amount), 0) AS total
+      FROM vouchers
+      WHERE voucher_type = 'sales' AND date >= date('now', '-6 months')
+      GROUP BY strftime('%Y-%m', date)
+    `).all();
+
+    const trendMap = {};
+    for (const r of trendRows) {
+      trendMap[r.ym] = r.total;
+    }
+
+    for (const item of last6Months) {
+      if (trendMap[item.ym] != null) {
+        item.value = trendMap[item.ym];
+      }
+    }
+  } catch (_) {}
+
   return {
     todaySalesTotal: salesStats.total,
     todaySalesCount: salesStats.count,
@@ -836,7 +866,8 @@ function dashboardStats(db, filters = {}) {
     todayPurchaseCount: purchaseStats.count,
     totalCustomers: totalCustomers.count,
     totalItems: totalItems.count,
-    recentInvoices: recentInvoices
+    recentInvoices: recentInvoices,
+    monthlyTrend: last6Months
   };
 }
 

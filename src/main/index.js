@@ -46,6 +46,7 @@ import {
   sendToWhatsApp
 } from './whatsappService.js';
 import fs from 'fs';
+import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -513,6 +514,44 @@ function registerIpcHandlers() {
 
   ipcMain.handle('app:get-version', () => {
     return { success: true, data: app.getVersion() };
+  });
+
+  ipcMain.handle('app:open-wb-manager', () => {
+    try {
+      const possiblePaths = [
+        'C:\\Users\\via\\Documents\\GSt softwaer\\WB Manager',
+        path.resolve(app.getAppPath(), '..', '..', 'WB Manager'),
+        path.resolve(app.getAppPath(), '..', 'WB Manager')
+      ];
+      let wbDir = 'C:\\Users\\via\\Documents\\GSt softwaer\\WB Manager';
+      for (const p of possiblePaths) {
+        if (fs.existsSync(p) && fs.existsSync(path.join(p, 'main.js'))) {
+          wbDir = p;
+          break;
+        }
+      }
+
+      const electronExe = path.join(wbDir, 'node_modules', 'electron', 'dist', 'electron.exe');
+      if (!fs.existsSync(wbDir)) {
+        return { success: false, error: `WB Manager directory not found at: ${wbDir}` };
+      }
+
+      // Strip ELECTRON_RUN_AS_NODE so Electron boots cleanly in GUI window mode
+      const env = { ...process.env };
+      delete env.ELECTRON_RUN_AS_NODE;
+
+      const child = spawn(electronExe, ['.'], {
+        cwd: wbDir,
+        env,
+        detached: true,
+        stdio: 'ignore'
+      });
+      child.unref();
+
+      return { success: true, path: wbDir };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   });
 
   ipcMain.handle('app:backup-database', async () => {

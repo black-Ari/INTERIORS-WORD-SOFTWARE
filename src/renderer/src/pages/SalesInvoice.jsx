@@ -232,7 +232,14 @@ export default function SalesInvoice() {
   // --- Calculators ---
   function openCalculator(index, category) {
     const item = items[index]
-    const existingMeta = item.calc_metadata ? JSON.parse(item.calc_metadata) : {}
+    let existingMeta = {}
+    try {
+      existingMeta = typeof item.calc_metadata === 'string'
+        ? JSON.parse(item.calc_metadata)
+        : (item.calc_metadata || {})
+    } catch {
+      existingMeta = {}
+    }
     
     let defaultData = {}
     if (category === 'curtain') {
@@ -312,7 +319,7 @@ export default function SalesInvoice() {
     // Automatically generate & save PDF in background without opening print dialog
     try {
       const result = await api.generatePDF(savedId)
-      if (result?.success) {
+      if (result) {
         toast.success('Bill saved as PDF successfully!')
       }
     } catch (pdfErr) {
@@ -341,11 +348,14 @@ export default function SalesInvoice() {
       const savedId = await saveInvoiceQuietly()
       if (!savedId) return
       
-      toast.success('Invoice saved! Launching WhatsApp...')
-      const result = await api.sendToWhatsApp(savedId, selectedCustomer.phone)
-      if (result) {
-        toast.success('Bill copied! Auto-pasting into WhatsApp...')
+      const phone = (selectedCustomer.phone || '').replace(/[^0-9]/g, '')
+      if (phone) {
+        const formattedPhone = phone.length === 10 ? `91${phone}` : phone
+        const msg = encodeURIComponent(`Hello ${selectedCustomer.name || ''}, your invoice #${voucherNumber} has been generated. Amount: Rs. ${calculations.netAmount}`)
+        window.open(`https://wa.me/${formattedPhone}?text=${msg}`, '_blank')
       }
+      toast.success('Opening WB Manager popup...')
+      window.api?.openWBManager?.()
     } catch (e) {
       toast.error(e.message || 'WhatsApp failed')
     }
@@ -353,13 +363,24 @@ export default function SalesInvoice() {
 
   async function handleCreateCustomer() {
     try {
-      const id = await api.ledgerCreate({ ...newCustomer, type: 'customer' })
+      const created = await api.ledgerCreate({ ...newCustomer, type: 'customer' })
       toast.success('Customer created')
       setShowCustomerModal(false)
-      loadInitialData()
-      handleCustomerSelect(id)
+      const freshLedgers = await api.ledgerList()
+      setLedgers(freshLedgers || [])
+      const newId = created?.id || created
+      if (newId) {
+        const customer = (freshLedgers || []).find(l => l.id === Number(newId))
+        setSelectedCustomer(customer)
+        const isInterstate = (customer?.state_code && companyStateCode && customer.state_code !== companyStateCode) ? 1 : 0
+        setVoucher(prev => ({
+          ...prev,
+          ledger_id: Number(newId),
+          is_interstate: isInterstate
+        }))
+      }
     } catch(e) {
-      toast.error('Failed to create customer')
+      toast.error('Failed to create customer: ' + (e.message || ''))
     }
   }
 
