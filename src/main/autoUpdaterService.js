@@ -94,12 +94,17 @@ class AutoUpdaterService {
         return { hasUpdate: false, message: 'You are running the latest version.' };
       }
 
-      const isNewer = compareVersions(release.tag_name, currentVersion) > 0;
+      const tagVer = (release.tag_name || '').replace(/^[vV]/, '').trim();
+      const nameMatch = (release.name || '').match(/\b\d+(\.\d+)+\b/);
+      const nameVer = nameMatch ? nameMatch[0] : '';
+      const targetVer = (nameVer && compareVersions(nameVer, tagVer) > 0) ? nameVer : tagVer;
+
+      const isNewer = compareVersions(targetVer, currentVersion) > 0;
       if (!isNewer) {
         return {
           hasUpdate: false,
           currentVersion,
-          latestVersion: release.tag_name,
+          latestVersion: targetVer,
           message: 'You are on the latest version.',
         };
       }
@@ -228,8 +233,15 @@ class AutoUpdaterService {
 
     // Gracefully exit current app so new executable can take over
     setTimeout(() => {
-      app.quit();
-    }, 500);
+      try {
+        app.quit();
+      } catch (_) {}
+      setTimeout(() => {
+        try {
+          app.exit(0);
+        } catch (_) {}
+      }, 1000);
+    }, 400);
 
     return { success: true };
   }
