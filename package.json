@@ -7,7 +7,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "dist": "electron-vite build && electron-builder --win portable",
+    "dist": "electron-vite build && electron-builder --win",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -39,16 +39,22 @@
       "out/**/*"
     ],
     "win": {
-      "target": "portable",
+      "target": [
+        "nsis"
+      ],
       "icon": "resources/icon.ico"
     },
     "nsis": {
-      "differentialPackage": false,
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "INTERIORS WORD"
+      "shortcutName": "INTERIORS WORD",
+      "runAfterFinish": true,
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico",
+      "uninstallDisplayName": "INTERIORS WORD",
+      "deleteAppDataOnUninstall": false
     },
     "asar": true,
     "asarUnpack": [
