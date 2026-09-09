@@ -54,7 +54,8 @@
       "installerIcon": "resources/icon.ico",
       "uninstallerIcon": "resources/icon.ico",
       "uninstallDisplayName": "INTERIORS WORD",
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "include": "resources/installer.nsh"
     },
     "asar": true,
     "asarUnpack": [

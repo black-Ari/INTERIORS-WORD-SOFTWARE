@@ -6,9 +6,34 @@ import { fileURLToPath } from 'url';
 import os from 'os';
 import fs from 'fs';
 
+// Disable hardware acceleration to eliminate Windows 11 AppContainer / GPU sandbox crashes (0x80000003)
+try {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('disable-gpu-sandbox');
+  app.commandLine.appendSwitch('no-sandbox');
+} catch (_) {}
+
+const debugLogPath = path.join(os.tmpdir(), 'interiors_word_debug.log');
+export function debugLog(msg) {
+  try {
+    fs.appendFileSync(debugLogPath, `[${new Date().toISOString()}] ${msg}\n`);
+  } catch (_) {}
+}
+
+debugLog('--- Process Starting (PID: ' + process.pid + ') ---');
+
 process.on('uncaughtException', (err) => {
+  debugLog('uncaughtException: ' + (err && (err.stack || err.toString())));
   try {
     fs.writeFileSync(path.join(os.tmpdir(), 'interiors_word_crash.log'), (err && (err.stack || err.toString())) || 'Unknown error');
+  } catch (_) {}
+});
+
+process.on('unhandledRejection', (reason) => {
+  debugLog('unhandledRejection: ' + (reason && (reason.stack || reason.toString())));
+  try {
+    fs.writeFileSync(path.join(os.tmpdir(), 'interiors_word_rejection.log'), (reason && (reason.stack || reason.toString())) || 'Unknown rejection');
   } catch (_) {}
 });
 import {
@@ -81,7 +106,8 @@ function createSplashWindow() {
     width: 480,
     height: 300,
     frame: false,
-    transparent: true,
+    transparent: false,
+    backgroundColor: '#0f172a',
     resizable: false,
     alwaysOnTop: true,
     center: true,
@@ -175,31 +201,63 @@ function createMainWindow() {
   mainWindow = new BrowserWindow(windowOpts);
 
   const showMainWindow = () => {
-    if (splashWin && !splashWin.isDestroyed()) {
-      splashWin.close();
-      splashWin = null;
-    }
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+    debugLog('showMainWindow called. isVisible: ' + (mainWindow && !mainWindow.isDestroyed() ? mainWindow.isVisible() : 'destroyed/null'));
+    if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show();
       mainWindow.focus();
+      debugLog('mainWindow shown! isVisible: ' + mainWindow.isVisible());
+    }
+    if (splashWin && !splashWin.isDestroyed()) {
+      setTimeout(() => {
+        try {
+          if (splashWin && !splashWin.isDestroyed()) {
+            splashWin.close();
+            splashWin = null;
+            debugLog('splashWin closed successfully');
+          }
+        } catch (e) {
+          debugLog('Error closing splashWin: ' + e);
+        }
+      }, 300);
     }
   };
 
   mainWindow.once('ready-to-show', () => {
+    debugLog('mainWindow ready-to-show event fired');
     setTimeout(showMainWindow, 500);
   });
 
   // Failsafe: if ready-to-show takes too long, reveal window anyway after 3.5s
-  setTimeout(showMainWindow, 3500);
+  setTimeout(() => {
+    debugLog('Failsafe timer reached (3.5s)');
+    showMainWindow();
+  }, 3500);
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    debugLog(`Failed to load ${validatedURL}: ${errorCode} ${errorDescription}`);
+    try {
+      fs.writeFileSync(path.join(os.tmpdir(), 'interiors_word_load_fail.log'), `Failed to load ${validatedURL}: ${errorCode} ${errorDescription}`);
+    } catch (_) {}
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    debugLog('render-process-gone: ' + JSON.stringify(details));
+  });
 
   // Load renderer
   if (process.env.ELECTRON_RENDERER_URL) {
+    debugLog('Loading URL: ' + process.env.ELECTRON_RENDERER_URL);
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    const htmlFile = path.join(__dirname, '../renderer/index.html');
+    debugLog('Loading file: ' + htmlFile);
+    mainWindow.loadFile(htmlFile);
   }
 
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.on('closed', () => {
+    debugLog('mainWindow closed event fired');
+    mainWindow = null;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -767,23 +825,35 @@ function registerIpcHandlers() {
 // ---------------------------------------------------------------------------
 
 const gotTheLock = app.requestSingleInstanceLock();
+debugLog('gotTheLock: ' + gotTheLock);
 
 if (!gotTheLock) {
+  try {
+    fs.writeFileSync(path.join(os.tmpdir(), 'interiors_word_single_instance.log'), 'Second instance exited at ' + new Date().toISOString());
+  } catch (_) {}
+  debugLog('Exiting because gotTheLock is false');
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
+    debugLog('second-instance event fired');
+    if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
+    } else if (splashWin && !splashWin.isDestroyed()) {
+      splashWin.focus();
     }
   });
 
   app.whenReady().then(() => {
+    debugLog('app.whenReady resolved');
     try {
       const dbPath = getDbPath();
+      debugLog('Initializing database at ' + dbPath);
       db = initDatabase(dbPath);
+      debugLog('Database initialized successfully');
     } catch (err) {
+      debugLog('Failed to initialize database: ' + err);
       console.error('Failed to initialize database:', err);
     }
 
@@ -803,7 +873,9 @@ if (!gotTheLock) {
           mainWindow?.webContents?.send('wa:owner-alert', alert);
         }
       });
+      debugLog('WhatsAppService initialized successfully');
     } catch (err) {
+      debugLog('Failed to initialize WhatsApp service: ' + err);
       console.error('Failed to initialize WhatsApp service:', err);
     }
 
@@ -820,13 +892,18 @@ if (!gotTheLock) {
           mainWindow?.webContents?.send('update:downloaded', info);
         }
       });
+      debugLog('AutoUpdaterService initialized successfully');
     } catch (err) {
+      debugLog('Failed to initialize AutoUpdater service: ' + err);
       console.error('Failed to initialize AutoUpdater service:', err);
     }
 
     // Show splash first, then start main window
+    debugLog('Creating splash window');
     createSplashWindow();
+    debugLog('Creating main window');
     createMainWindow();
+    debugLog('Registering IPC handlers');
     registerIpcHandlers();
 
     // Check for updates automatically 10s after startup
@@ -843,20 +920,31 @@ if (!gotTheLock) {
   });
 
   app.on('window-all-closed', () => {
+    debugLog('app window-all-closed fired');
     // Close the database connection
     if (db) {
       try { db.close(); } catch (_) { /* ignore */ }
     }
     // On macOS apps stay open until Cmd+Q
     if (process.platform !== 'darwin') {
+      debugLog('app.quit called from window-all-closed');
       app.quit();
     }
   });
 
   app.on('before-quit', () => {
+    debugLog('app before-quit fired');
     if (db) {
       try { db.close(); } catch (_) { /* ignore */ }
       db = null;
     }
+  });
+
+  app.on('will-quit', () => {
+    debugLog('app will-quit fired');
+  });
+
+  app.on('quit', (_e, exitCode) => {
+    debugLog('app quit fired with exitCode: ' + exitCode);
   });
 }
