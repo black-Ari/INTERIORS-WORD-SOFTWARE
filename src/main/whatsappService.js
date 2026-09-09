@@ -88,7 +88,7 @@ class WhatsAppService {
 
       const sock = makeWASocket({
         auth: state,
-        browser: ['INTERIORS WORD', 'Chrome', '3.0.0'],
+        browser: ['INTERIORS WORD', 'Chrome', '3.1.0'],
         syncFullHistory: false,
         printQRInTerminal: false,
       });

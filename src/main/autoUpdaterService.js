@@ -33,7 +33,7 @@ function fetchJson(url) {
       url,
       {
         headers: {
-          'User-Agent': 'INTERIORS-WORD-AutoUpdater/3.0.0',
+          'User-Agent': 'INTERIORS-WORD-AutoUpdater/3.1.0',
           Accept: 'application/vnd.github.v3+json',
         },
       },
@@ -151,7 +151,7 @@ class AutoUpdaterService {
           currentUrl,
           {
             headers: {
-              'User-Agent': 'INTERIORS-WORD-AutoUpdater/3.0.0',
+              'User-Agent': 'INTERIORS-WORD-AutoUpdater/3.1.0',
             },
           },
           (res) => {
