@@ -353,12 +353,17 @@ export default function SalesInvoice() {
 
       try {
         const waStatus = await window.api?.wa?.getStatus()
-        if (waStatus?.status === 'connected') {
-          await window.api?.wa?.sendDirect({ to: phone, text: msg })
-          toast.success(`Invoice sent directly via WhatsApp to +${phone}!`)
-          return
+        if (waStatus?.status === 'connected' && window.api?.sendInvoiceWhatsApp) {
+          toast.info('Sending Invoice & Bill PDF via WhatsApp in background...')
+          const res = await window.api.sendInvoiceWhatsApp(savedId, phone, msg)
+          if (res?.success) {
+            toast.success(`Invoice #${voucherNumber} and Bill PDF sent to +${phone} in background!`)
+            return
+          }
         }
-      } catch {}
+      } catch (err) {
+        console.error('Background send error:', err)
+      }
 
       if (phone) {
         const formattedPhone = phone.length === 10 ? `91${phone}` : phone

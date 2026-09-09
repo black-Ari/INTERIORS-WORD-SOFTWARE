@@ -447,30 +447,66 @@ class WhatsAppService {
     return `${digits}@s.whatsapp.net`;
   }
 
-  async sendBulk({ contacts, message, sendAt }, onProgress) {
+  getMimeType(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    const map = {
+      '.pdf': 'application/pdf',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.xls': 'application/vnd.ms-excel',
+      '.csv': 'text/csv',
+      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.doc': 'application/msword',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp',
+      '.gif': 'image/gif',
+      '.txt': 'text/plain',
+      '.zip': 'application/zip'
+    };
+    return map[ext] || 'application/octet-stream';
+  }
+
+  async sendBulk({ contacts, message, sendAt, attachmentPath, filePath, mediaPath }, onProgress) {
     if (!this.sock) {
       throw new Error('WhatsApp is not connected. Please scan the QR code first.');
     }
+
+    const fileToAttach = attachmentPath || filePath || mediaPath;
 
     if (sendAt) {
       const delay = new Date(sendAt).getTime() - Date.now();
       if (delay > 0) {
         onProgress?.({ type: 'status', text: `Scheduled to send in ${Math.round(delay / 60000)} minutes...` });
         setTimeout(() => {
-          this._executeBulkSend(contacts, message, onProgress);
+          this._executeBulkSend(contacts, message, onProgress, fileToAttach);
         }, delay);
         return { scheduled: true, delay };
       }
     }
 
-    return this._executeBulkSend(contacts, message, onProgress);
+    return this._executeBulkSend(contacts, message, onProgress, fileToAttach);
   }
 
-  async _executeBulkSend(contactList, message, onProgress) {
+  async _executeBulkSend(contactList, message, onProgress, attachmentPath) {
     let sent = 0;
     let failed = 0;
     let skipped = 0;
     const total = contactList.length;
+
+    let fileBuffer = null;
+    let mimeType = null;
+    let fileName = null;
+
+    if (attachmentPath && fs.existsSync(attachmentPath)) {
+      try {
+        fileBuffer = fs.readFileSync(attachmentPath);
+        mimeType = this.getMimeType(attachmentPath);
+        fileName = path.basename(attachmentPath);
+      } catch (err) {
+        this.log(`Failed to read attachment ${attachmentPath}: ${err.message}`, 'error');
+      }
+    }
 
     for (let i = 0; i < contactList.length; i++) {
       const contact = contactList[i];
@@ -497,7 +533,24 @@ class WhatsAppService {
           continue;
         }
 
-        await this.sock.sendMessage(check.jid, { text: personalized });
+        if (fileBuffer) {
+          if (mimeType.startsWith('image/')) {
+            await this.sock.sendMessage(check.jid, {
+              image: fileBuffer,
+              caption: personalized || '',
+            });
+          } else {
+            await this.sock.sendMessage(check.jid, {
+              document: fileBuffer,
+              mimetype: mimeType,
+              fileName: fileName,
+              caption: personalized || '',
+            });
+          }
+        } else {
+          await this.sock.sendMessage(check.jid, { text: personalized });
+        }
+
         sent++;
         onProgress?.({ type: 'sent', number: rawNumber, current: i + 1, total });
         this.log(`Bulk sent to +${rawNumber} (${i + 1}/${total})`, 'success');
@@ -520,14 +573,15 @@ class WhatsAppService {
     return summary;
   }
 
-  async sendDirectMessage({ to, text, attachmentPath }) {
+  async sendDirectMessage({ to, text, attachmentPath, filePath, mediaPath }) {
     if (!this.sock) throw new Error('WhatsApp is not connected');
     const jid = this.toJid(to);
+    const targetFile = attachmentPath || filePath || mediaPath;
 
-    if (attachmentPath && fs.existsSync(attachmentPath)) {
-      const ext = path.extname(attachmentPath).toLowerCase();
-      const mimeType = ext === '.pdf' ? 'application/pdf' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'application/octet-stream';
-      const fileBuffer = fs.readFileSync(attachmentPath);
+    if (targetFile && fs.existsSync(targetFile)) {
+      const mimeType = this.getMimeType(targetFile);
+      const fileBuffer = fs.readFileSync(targetFile);
+      const fileName = path.basename(targetFile);
 
       if (mimeType.startsWith('image/')) {
         await this.sock.sendMessage(jid, {
@@ -538,7 +592,7 @@ class WhatsAppService {
         await this.sock.sendMessage(jid, {
           document: fileBuffer,
           mimetype: mimeType,
-          fileName: path.basename(attachmentPath),
+          fileName: fileName,
           caption: text || '',
         });
       }

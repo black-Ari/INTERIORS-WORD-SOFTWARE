@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld('api', {
   backupDatabase: () => invokeApi('app:backup-database'),
   restoreDatabase: () => invokeApi('app:restore-database'),
   getVersion: () => invokeApi('app:get-version'),
+  selectFile: (opts) => ipcRenderer.invoke('app:select-file', opts),
+  sendInvoiceWhatsApp: (voucherId, phone, message) => ipcRenderer.invoke('invoice:send-whatsapp', { voucherId, phone, message }),
 
   // Native WhatsApp System
   wa: {

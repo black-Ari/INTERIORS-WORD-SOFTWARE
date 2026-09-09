@@ -605,7 +605,7 @@ function voucherCreate(db, voucherData, items) {
 
 function voucherList(db, filters) {
   let sql = `
-    SELECT v.*, l.name AS ledger_name
+    SELECT v.*, l.name AS ledger_name, l.phone AS ledger_phone, l.address AS ledger_address
     FROM vouchers v
     LEFT JOIN ledgers l ON v.ledger_id = l.id
     WHERE 1=1

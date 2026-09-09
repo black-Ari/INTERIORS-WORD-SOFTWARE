@@ -665,6 +665,72 @@ function registerIpcHandlers() {
     }
   });
 
+  ipcMain.handle('app:select-file', async (_e, { title, filters } = {}) => {
+    try {
+      const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        title: title || 'Select File to Send',
+        properties: ['openFile'],
+        filters: filters || [
+          { name: 'Supported Files (PDF, Excel, Word, Images)', extensions: ['pdf', 'xlsx', 'xls', 'csv', 'docx', 'doc', 'png', 'jpg', 'jpeg', 'webp', 'txt'] },
+          { name: 'PDF Documents (*.pdf)', extensions: ['pdf'] },
+          { name: 'Excel Spreadsheets (*.xlsx, *.xls, *.csv)', extensions: ['xlsx', 'xls', 'csv'] },
+          { name: 'Word Documents (*.docx, *.doc)', extensions: ['docx', 'doc'] },
+          { name: 'Images (*.png, *.jpg, *.jpeg, *.webp)', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
+          { name: 'All Files (*.*)', extensions: ['*'] }
+        ]
+      });
+      if (canceled || !filePaths || filePaths.length === 0) {
+        return { canceled: true };
+      }
+      const filePath = filePaths[0];
+      const stats = fs.statSync(filePath);
+      return {
+        canceled: false,
+        filePath,
+        fileName: path.basename(filePath),
+        fileSize: stats.size,
+        ext: path.extname(filePath).toLowerCase()
+      };
+    } catch (err) {
+      return { error: err.message };
+    }
+  });
+
+  ipcMain.handle('invoice:send-whatsapp', async (_e, { voucherId, phone, message } = {}) => {
+    try {
+      if (!waService) throw new Error('WhatsApp service not initialized');
+      const waStatus = waService.getStatus();
+      if (waStatus.status !== 'connected') {
+        throw new Error('WhatsApp is not connected. Please scan QR code in WhatsApp Manager (F10).');
+      }
+
+      const voucher = voucherGet(db, voucherId);
+      if (!voucher) throw new Error('Voucher not found');
+
+      const targetPhone = (phone || voucher.ledger_phone || '').replace(/[^0-9]/g, '');
+      if (!targetPhone) throw new Error('Customer phone number is missing.');
+
+      let pdfPath = voucher.pdf_path;
+      if (!pdfPath || !fs.existsSync(pdfPath)) {
+        const company = companyGet(db);
+        pdfPath = await generateInvoicePDF(mainWindow, voucher, company);
+        db.prepare('UPDATE vouchers SET pdf_path = ? WHERE id = ?').run(pdfPath, voucherId);
+      }
+
+      const defaultMsg = message || `Hello ${voucher.ledger_name || ''}, your invoice #${voucher.voucher_number || ''} from INTERIORS WORD has been generated. Amount: Rs. ${voucher.net_amount || 0}. Thank you!`;
+
+      await waService.sendDirectMessage({
+        to: targetPhone,
+        text: defaultMsg,
+        attachmentPath: pdfPath
+      });
+
+      return { success: true, phone: targetPhone, pdfPath, voucherNumber: voucher.voucher_number };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   // -------------------------------------------------------------------------
   // Native WhatsApp Business System IPCs
   // -------------------------------------------------------------------------

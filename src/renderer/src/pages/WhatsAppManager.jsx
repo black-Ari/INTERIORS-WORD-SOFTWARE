@@ -26,6 +26,14 @@ export default function WhatsAppManager() {
   const [sendAt, setSendAt] = useState('')
   const [bulkProgress, setBulkProgress] = useState(null)
   const [isSendingBulk, setIsSendingBulk] = useState(false)
+  const [bulkAttachment, setBulkAttachment] = useState(null)
+
+  // Direct Send State
+  const [directPhone, setDirectPhone] = useState('')
+  const [directMessage, setDirectMessage] = useState('')
+  const [directAttachment, setDirectAttachment] = useState(null)
+  const [isSendingDirect, setIsSendingDirect] = useState(false)
+  const [customerContacts, setCustomerContacts] = useState([])
 
   // Auto-Reply State
   const [autoReply, setAutoReply] = useState({
@@ -83,6 +91,9 @@ export default function WhatsAppManager() {
 
           const alrts = await window.api.wa.getAlerts()
           if (alrts) setAlerts(alrts)
+
+          const contacts = await window.api.wa.getCustomerContacts()
+          if (contacts) setCustomerContacts(contacts)
         }
       } catch (err) {
         console.error('Failed to load WhatsApp data:', err)
@@ -269,6 +280,76 @@ export default function WhatsAppManager() {
     showToast?.('Template applied to message box!', 'info')
   }
 
+  const handlePickBulkAttachment = async () => {
+    try {
+      const res = await window.api?.selectFile?.({
+        title: 'Select Document or Media (PDF, Excel, Word, Image)'
+      })
+      if (res && !res.canceled && res.filePath) {
+        setBulkAttachment(res)
+        showToast?.(`Attached: ${res.fileName}`, 'success')
+      }
+    } catch (e) {
+      showToast?.(e.message || 'Error selecting file', 'error')
+    }
+  }
+
+  const handlePickDirectAttachment = async () => {
+    try {
+      const res = await window.api?.selectFile?.({
+        title: 'Select Document or Media (PDF, Excel, Word, Image)'
+      })
+      if (res && !res.canceled && res.filePath) {
+        setDirectAttachment(res)
+        showToast?.(`Attached: ${res.fileName}`, 'success')
+      }
+    } catch (e) {
+      showToast?.(e.message || 'Error selecting file', 'error')
+    }
+  }
+
+  const handleSendDirect = async () => {
+    if (status.status !== 'connected') {
+      showToast?.('WhatsApp is disconnected. Please scan the QR code first.', 'warning')
+      setActiveTab('connect')
+      return
+    }
+
+    const cleanPhone = directPhone.replace(/[^0-9]/g, '')
+    if (cleanPhone.length < 10) {
+      showToast?.('Please enter a valid 10-digit customer phone number.', 'warning')
+      return
+    }
+
+    if (!directMessage.trim() && !directAttachment) {
+      showToast?.('Please write a message or attach a file to send.', 'warning')
+      return
+    }
+
+    try {
+      setIsSendingDirect(true)
+      showToast?.(`Sending message & file to +${cleanPhone} in background...`, 'info')
+
+      const res = await window.api?.wa?.sendDirect({
+        to: cleanPhone,
+        text: directMessage,
+        attachmentPath: directAttachment?.filePath || null
+      })
+
+      if (res?.success) {
+        showToast?.(`Sent successfully in background to +${cleanPhone}!`, 'success')
+        setDirectMessage('')
+        setDirectAttachment(null)
+      } else {
+        showToast?.(res?.error || 'Send failed', 'error')
+      }
+    } catch (err) {
+      showToast?.(`Send failed: ${err.message}`, 'error')
+    } finally {
+      setIsSendingDirect(false)
+    }
+  }
+
   // Bulk send action
   const handleSendBulk = async () => {
     if (status.status !== 'connected') {
@@ -286,12 +367,16 @@ export default function WhatsAppManager() {
       return
     }
 
-    if (!messageTemplate.trim()) {
-      showToast?.('Please type a message to send.', 'warning')
+    if (!messageTemplate.trim() && !bulkAttachment) {
+      showToast?.('Please type a message or select a file to send.', 'warning')
       return
     }
 
-    if (!window.confirm(`Ready to send messages to ${validContacts.length} contacts with anti-ban delays?`)) return
+    const confirmMsg = bulkAttachment
+      ? `Ready to broadcast to ${validContacts.length} contacts with attached file (${bulkAttachment.fileName})?`
+      : `Ready to send messages to ${validContacts.length} contacts with anti-ban delays?`
+
+    if (!window.confirm(confirmMsg)) return
 
     try {
       setIsSendingBulk(true)
@@ -299,7 +384,8 @@ export default function WhatsAppManager() {
       await window.api?.wa?.sendBulk({
         contacts: validContacts,
         message: messageTemplate,
-        sendAt: sendAt || null
+        sendAt: sendAt || null,
+        attachmentPath: bulkAttachment?.filePath || null
       })
     } catch (err) {
       setIsSendingBulk(false)
@@ -512,15 +598,6 @@ export default function WhatsAppManager() {
               {isConnecting ? 'Starting...' : 'Connect WhatsApp'}
             </button>
           )}
-
-          <button
-            onClick={() => window.api?.openWBManager?.()}
-            title="Open original WB Manager as a standalone window"
-            className="px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors hover:bg-white/10"
-            style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
-          >
-            ↗ Popup Window
-          </button>
         </div>
       </div>
 
@@ -577,6 +654,7 @@ export default function WhatsAppManager() {
       <div className="flex items-center gap-2 border-b pb-3" style={{ borderColor: 'var(--border-color)' }}>
         {[
           { id: 'connect', label: 'Connect & Status', icon: '🔗' },
+          { id: 'direct', label: 'Send Direct & Files', icon: '💬' },
           { id: 'bulk', label: 'Bulk Broadcast', icon: '📢' },
           { id: 'autoreply', label: 'Auto-Reply & AI', icon: '🤖' },
           { id: 'orders', label: `Orders & Inquiries (${orders.length})`, icon: '📦' },
@@ -694,6 +772,252 @@ export default function WhatsAppManager() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: DIRECT & FILE SENDING */}
+      {activeTab === 'direct' && (
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          <div className="md:col-span-8 glass-panel p-6 rounded-2xl border space-y-5" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
+            <div>
+              <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                Direct WhatsApp Sender (Messages & All File Types)
+              </h2>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Send messages and any documents (PDF, Excel, Word, Images) directly in the background via WhatsApp without opening any browser or external WB Manager popups.
+              </p>
+            </div>
+
+            {/* Connection Status Banner */}
+            {status.status !== 'connected' ? (
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>WhatsApp is not connected yet. Link your device in the Connect tab to send messages.</span>
+                </div>
+                <button
+                  onClick={() => setActiveTab('connect')}
+                  className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-semibold text-xs transition-colors"
+                >
+                  Go to Connect →
+                </button>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                <span>✓</span>
+                <span>WhatsApp is connected to <strong>+{status.number}</strong>. Ready to send messages & files in background.</span>
+              </div>
+            )}
+
+            {/* Recipient Selection */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
+                  Select from Ledger Customers
+                </label>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setDirectPhone(e.target.value)
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-xl border bg-black/20 focus:outline-none focus:border-emerald-500 text-xs"
+                  style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value="">-- Choose Customer --</option>
+                  {customerContacts.map((c, i) => (
+                    <option key={i} value={c.phone}>
+                      {c.name} ({c.phone})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
+                  Customer Phone Number <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={directPhone}
+                  onChange={(e) => setDirectPhone(e.target.value)}
+                  placeholder="e.g. 9876543210 or 919876543210"
+                  className="w-full px-3 py-2 rounded-xl border bg-black/20 focus:outline-none focus:border-emerald-500 text-xs"
+                  style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                />
+              </div>
+            </div>
+
+            {/* Quick Templates */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Quick Message Templates
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDirectMessage(
+                      'Namaste ji! INTERIORS WORD se aapka bill/invoice attach kar diya gaya hai. Kripya check karein. Kisi bhi sawal ke liye reply karein. Dhanyawad! 🙏'
+                    )
+                  }
+                  className="px-2.5 py-1 rounded-lg border text-xs text-slate-300 hover:text-white hover:bg-white/10"
+                  style={{ borderColor: 'var(--border-color)' }}
+                >
+                  🧾 Invoice & Bill
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDirectMessage(
+                      'Namaste ji! INTERIORS WORD ka naya furnishing catalog attach kar diya gaya hai (Curtains, Blinds, Wallpapers, Wooden Flooring). Reply for quotation! ✨'
+                    )
+                  }
+                  className="px-2.5 py-1 rounded-lg border text-xs text-slate-300 hover:text-white hover:bg-white/10"
+                  style={{ borderColor: 'var(--border-color)' }}
+                >
+                  🎨 Product Catalog
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDirectMessage(
+                      'Dear customer, gentle reminder regarding your pending balance at INTERIORS WORD. You can pay via UPI or Net Banking. Thank you!'
+                    )
+                  }
+                  className="px-2.5 py-1 rounded-lg border text-xs text-slate-300 hover:text-white hover:bg-white/10"
+                  style={{ borderColor: 'var(--border-color)' }}
+                >
+                  💰 Payment Reminder
+                </button>
+              </div>
+            </div>
+
+            {/* Message Body */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
+                Message Text (Optional if file attached)
+              </label>
+              <textarea
+                rows={4}
+                value={directMessage}
+                onChange={(e) => setDirectMessage(e.target.value)}
+                placeholder="Type your message here..."
+                className="w-full p-3 rounded-xl border bg-black/10 focus:outline-none focus:border-emerald-500 text-sm font-sans"
+                style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+              />
+            </div>
+
+            {/* File Attachment Support (All Types: PDF, Excel, Word, Images) */}
+            <div className="p-4 rounded-xl border space-y-3" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'var(--border-color)' }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Attach Any File (PDF, Excel, Word, Image, etc.)
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Direct background delivery for Invoices (.pdf), Quotations, Excel sheets (.xlsx, .xls, .csv), Word files (.docx), or Photos (.png, .jpg).
+                  </p>
+                </div>
+                {directAttachment ? (
+                  <button
+                    type="button"
+                    onClick={() => setDirectAttachment(null)}
+                    className="text-xs text-rose-400 hover:text-rose-300 font-medium"
+                  >
+                    Remove File
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePickDirectAttachment}
+                    className="px-3 py-1.5 rounded-lg border text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border-emerald-500/30 flex items-center gap-1.5"
+                  >
+                    <span>📎</span> Select File...
+                  </button>
+                )}
+              </div>
+
+              {directAttachment && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                  <span className="text-2xl">
+                    {directAttachment.ext === 'pdf' ? '📄' : directAttachment.ext?.includes('xls') || directAttachment.ext === 'csv' ? '📊' : directAttachment.ext?.includes('doc') ? '📝' : '🖼️'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-emerald-300 truncate">{directAttachment.fileName}</p>
+                    <p className="text-[10px] text-slate-400">
+                      {directAttachment.fileSize ? (directAttachment.fileSize / 1024).toFixed(1) + ' KB' : ''} • Path: <span className="font-mono">{directAttachment.filePath}</span>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handlePickDirectAttachment}
+                    className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-white/5"
+                  >
+                    Change
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Send Button */}
+            <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: 'var(--border-color)' }}>
+              <span className="text-xs text-slate-400">
+                ⚡ Sends instantly in background without opening any browser or popup.
+              </span>
+
+              <button
+                type="button"
+                onClick={handleSendDirect}
+                disabled={isSendingDirect}
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm shadow-lg transition-all flex items-center gap-2"
+              >
+                <span>{isSendingDirect ? '⏳ Sending in Background...' : '🚀 Send WhatsApp Now'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Right Info Box */}
+          <div className="md:col-span-4 space-y-4">
+            <div className="glass-panel p-5 rounded-2xl border space-y-3" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
+              <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                <span>📁</span> Supported File Types
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                WhatsApp Manager supports sending all document and media types natively:
+              </p>
+              <ul className="text-xs text-slate-400 space-y-2">
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-400">✓</span>
+                  <span><strong>PDF Documents</strong> (.pdf) - Invoices, estimates, reports</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-400">✓</span>
+                  <span><strong>Excel Spreadsheets</strong> (.xlsx, .xls, .csv) - Stock, accounts</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-400">✓</span>
+                  <span><strong>Word Documents</strong> (.docx, .doc) - Contracts, agreements</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-400">✓</span>
+                  <span><strong>Images & Photos</strong> (.jpg, .png, .webp) - Catalogs, fabric samples</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="glass-panel p-5 rounded-2xl border space-y-3" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
+              <h3 className="text-sm font-bold text-blue-400 flex items-center gap-2">
+                <span>⚡</span> 100% Background Execution
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                When you click "Send" from Sales Invoices, Reports, or here, it uses the integrated WhatsApp socket engine directly.
+              </p>
+              <p className="text-xs text-slate-400">
+                It never asks you to open external WB Manager software or browser tabs.
+              </p>
             </div>
           </div>
         </div>
@@ -846,6 +1170,49 @@ export default function WhatsAppManager() {
                 style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                 placeholder="Type your message here... Use {A}, {B}, {C} for columns"
               />
+            </div>
+
+            {/* File Attachment Support (All Types: PDF, Excel, Word, Images) */}
+            <div className="p-4 rounded-xl border space-y-2" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'var(--border-color)' }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Broadcast File Attachment (Optional)
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Supports all file types: PDF, Excel (.xlsx, .xls, .csv), Word (.docx), Images (.jpg, .png), etc.
+                  </p>
+                </div>
+                {bulkAttachment ? (
+                  <button
+                    type="button"
+                    onClick={() => setBulkAttachment(null)}
+                    className="text-xs text-rose-400 hover:text-rose-300 font-medium"
+                  >
+                    Remove File
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePickBulkAttachment}
+                    className="px-3 py-1.5 rounded-lg border text-xs font-semibold bg-white/5 hover:bg-white/10 text-emerald-400 border-emerald-500/30 flex items-center gap-1.5"
+                  >
+                    <span>📎</span> Attach File
+                  </button>
+                )}
+              </div>
+
+              {bulkAttachment && (
+                <div className="flex items-center gap-3 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                  <span className="text-xl">
+                    {bulkAttachment.ext === 'pdf' ? '📄' : bulkAttachment.ext?.includes('xls') || bulkAttachment.ext === 'csv' ? '📊' : bulkAttachment.ext?.includes('doc') ? '📝' : '🖼️'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-emerald-300 truncate">{bulkAttachment.fileName}</p>
+                    <p className="text-[10px] text-slate-400">{bulkAttachment.fileSize ? (bulkAttachment.fileSize / 1024).toFixed(1) + ' KB' : ''} • {bulkAttachment.ext?.toUpperCase()}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Broadcast Options & Send */}

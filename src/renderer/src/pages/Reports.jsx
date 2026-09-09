@@ -37,18 +37,65 @@ export default function Reports() {
 
   async function handleSendWhatsApp(id, row) {
     try {
-      const phone = (row?.ledger_phone || '').replace(/[^0-9]/g, '')
-      if (phone) {
-        const formattedPhone = phone.length === 10 ? `91${phone}` : phone
-        const msg = encodeURIComponent(`Hello, here is your invoice #${row.voucher_number || ''} from Interiors World. Amount: Rs. ${row.net_amount || 0}`)
-        window.open(`https://wa.me/${formattedPhone}?text=${msg}`, '_blank')
-        toast.success(`Opening WhatsApp for ${row.ledger_name || phone}...`)
-      } else {
-        toast.info('Opening WB Manager...')
+      let phone = (row?.ledger_phone || '').replace(/[^0-9]/g, '')
+      let customerName = row?.ledger_name || 'Customer'
+      let voucherNumber = row?.voucher_number || id
+
+      if (!phone) {
+        try {
+          const v = await api.voucherGet(id)
+          if (v?.ledger_phone) {
+            phone = String(v.ledger_phone).replace(/[^0-9]/g, '')
+          }
+          if (v?.ledger_name) customerName = v.ledger_name
+          if (v?.voucher_number) voucherNumber = v.voucher_number
+        } catch (_) {}
       }
-      window.api?.openWBManager?.()
+
+      if (!phone) {
+        const entered = window.prompt(`Please enter WhatsApp phone number for ${customerName}:`, '')
+        if (!entered) return
+        phone = entered.replace(/[^0-9]/g, '')
+        if (!phone) {
+          toast.warning('Invalid phone number')
+          return
+        }
+      }
+
+      toast.info(`Sending Invoice #${voucherNumber} & PDF to ${customerName}...`)
+
+      // Check WhatsApp connection status
+      const waStatus = await window.api?.wa?.getStatus?.()
+      const isConnected = waStatus?.status === 'connected'
+
+      if (isConnected && window.api?.sendInvoiceWhatsApp) {
+        const res = await window.api.sendInvoiceWhatsApp(id, phone)
+        if (res?.success) {
+          toast.success(`Invoice #${voucherNumber} and Bill PDF sent in background to +${phone}!`)
+          return
+        } else {
+          toast.error(res?.error || 'Background WhatsApp send failed')
+        }
+      }
+
+      // If disconnected: give option to open WhatsApp Manager to connect
+      if (!isConnected) {
+        const openManager = window.confirm(
+          `WhatsApp is currently disconnected in INTERIORS WORD.\n\nWould you like to open WhatsApp Manager (F10) to connect WhatsApp for automatic background PDF sending?\n\nClick Cancel to open wa.me web chat instead.`
+        )
+        if (openManager) {
+          navigate('/whatsapp')
+          return
+        }
+      }
+
+      // Fallback to wa.me link
+      const formattedPhone = phone.length === 10 ? `91${phone}` : phone
+      const msg = encodeURIComponent(`Hello ${customerName}, your invoice #${voucherNumber} from INTERIORS WORD has been generated. Amount: Rs. ${row?.net_amount || 0}. Thank you!`)
+      window.open(`https://wa.me/${formattedPhone}?text=${msg}`, '_blank')
+      toast.success(`Opened WhatsApp chat for ${customerName}`)
     } catch (e) {
-      toast.error(e.message || 'Error opening WhatsApp')
+      toast.error(e.message || 'Error sending WhatsApp invoice')
     }
   }
 
@@ -307,14 +354,14 @@ export default function Reports() {
           </div>
           <div>
             <h4 className="text-sm font-bold text-emerald-800 dark:text-emerald-300">WhatsApp Business Manager</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Launch WB Manager in a dedicated popup window to send invoices, manage chats, and broadcast campaigns.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Manage WhatsApp connection, automated AI replies, background invoice sending, and broadcast campaigns.</p>
           </div>
         </div>
         <button
-          onClick={() => window.api?.openWBManager?.()}
+          onClick={() => navigate('/whatsapp')}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all shrink-0 hover:scale-105 active:scale-95"
         >
-          <span>Open WB Manager Popup</span>
+          <span>Open WhatsApp Manager</span>
           <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-700 text-emerald-100">F10</kbd>
         </button>
       </div>
