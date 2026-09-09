@@ -39,7 +39,12 @@ import {
   globalSearch
 } from './database.js';
 import { generateInvoicePDF, printInvoice } from './pdfService.js';
-import { sendToWhatsApp } from './whatsappService.js';
+import {
+  initializeWhatsApp,
+  disconnectWhatsApp,
+  getWhatsAppStatus,
+  sendToWhatsApp
+} from './whatsappService.js';
 import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -440,6 +445,27 @@ function registerIpcHandlers() {
   });
 
   // ── WhatsApp ─────────────────────────────────────────────────────────────
+  ipcMain.handle('whatsapp:status', () => getWhatsAppStatus());
+
+  ipcMain.handle('whatsapp:connect', async (event) => {
+    try {
+      const result = await initializeWhatsApp(app.getPath('userData'), (state) => {
+        if (!event.sender.isDestroyed()) event.sender.send('whatsapp:status', state);
+      });
+      return { success: true, data: result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('whatsapp:disconnect', async () => {
+    try {
+      return { success: true, data: await disconnectWhatsApp() };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('whatsapp:send', async (_event, voucherId, phone) => {
     try {
       const voucher = voucherGet(db, voucherId);
@@ -460,7 +486,11 @@ function registerIpcHandlers() {
         return { success: false, error: 'No phone number available.' };
       }
 
-      const result = await sendToWhatsApp(pdfPath, phoneNumber);
+      const result = await sendToWhatsApp(
+        pdfPath,
+        phoneNumber,
+        `Hello ${voucher.ledger_name || ''}, your bill ${voucher.voucher_number || ''} is attached.`
+      );
       return { success: true, data: result };
     } catch (err) {
       return { success: false, error: err.message };

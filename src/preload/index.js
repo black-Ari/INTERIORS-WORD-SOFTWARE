@@ -39,6 +39,14 @@ contextBridge.exposeInMainWorld('api', {
   generatePDF: (voucherId) => invokeApi('pdf:generate', voucherId),
   printInvoice: (voucherId) => invokeApi('pdf:print', voucherId),
   sendToWhatsApp: (voucherId, phone) => invokeApi('whatsapp:send', voucherId, phone),
+  whatsappStatus: () => invokeApi('whatsapp:status'),
+  whatsappConnect: () => invokeApi('whatsapp:connect'),
+  whatsappDisconnect: () => invokeApi('whatsapp:disconnect'),
+  onWhatsAppStatus: (callback) => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on('whatsapp:status', listener);
+    return () => ipcRenderer.removeListener('whatsapp:status', listener);
+  },
   openPDFFolder: () => invokeApi('app:open-pdf-folder'),
   backupDatabase: () => invokeApi('app:backup-database'),
   restoreDatabase: () => invokeApi('app:restore-database'),

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DataTable from '../components/DataTable'
 import MiniChart from '../components/MiniChart'
+import WhatsAppConnection from '../components/WhatsAppConnection'
 import { formatCurrency, formatDate } from '../utils/formatters'
 import { useToast } from '../components/Toast'
 
@@ -15,6 +16,7 @@ export default function Reports() {
   const [loading,     setLoading]     = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showChart,   setShowChart]   = useState(true)
+  const [whatsappState, setWhatsappState] = useState({ status: 'disconnected' })
 
   const [filters, setFilters] = useState({
     startDate: new Date(new Date().setDate(1)).toISOString().split('T')[0],
@@ -35,13 +37,33 @@ export default function Reports() {
   }
 
   async function handleSendWhatsApp(id, phone) {
+    if (whatsappState.status !== 'ready') {
+      toast.warning('Connect WhatsApp before sending a bill')
+      return
+    }
     try {
-      toast.success('Generating PDF and opening WhatsApp...')
+      toast.info('Sending message and bill PDF...')
       const result = await api.sendToWhatsApp(id, phone)
-      if (result.success) toast.success('Bill copied! Auto-pasting into WhatsApp...')
+      if (result.success) toast.success('Message and bill PDF sent successfully')
       else toast.error(result.error || 'Failed to send WhatsApp')
     } catch (e) {
       toast.error(e.message || 'Error communicating with WhatsApp')
+    }
+  }
+
+  async function handleConnectWhatsApp() {
+    try {
+      await api.whatsappConnect()
+    } catch (e) {
+      toast.error(e.message || 'Could not start WhatsApp')
+    }
+  }
+
+  async function handleDisconnectWhatsApp() {
+    try {
+      await api.whatsappDisconnect()
+    } catch (e) {
+      toast.error(e.message || 'Could not disconnect WhatsApp')
     }
   }
 
@@ -106,6 +128,20 @@ export default function Reports() {
 
   /* ── Load data ─────────────────────────────────────────────────── */
   useEffect(() => { loadData() }, [tab, filters])
+
+  useEffect(() => {
+    let active = true
+    api.whatsappStatus?.().then(state => {
+      if (active && state) setWhatsappState(state)
+    }).catch(() => {})
+    const removeListener = api.onWhatsAppStatus?.(state => {
+      if (active) setWhatsappState(state)
+    })
+    return () => {
+      active = false
+      removeListener?.()
+    }
+  }, [])
 
   async function loadData() {
     setLoading(true)
@@ -253,6 +289,12 @@ export default function Reports() {
           </div>
         </div>
       </div>
+
+      <WhatsAppConnection
+        state={whatsappState}
+        onConnect={handleConnectWhatsApp}
+        onDisconnect={handleDisconnectWhatsApp}
+      />
 
       {/* ── Summary Cards ───────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">
