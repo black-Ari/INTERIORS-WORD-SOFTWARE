@@ -36,17 +36,36 @@ function qrToSvgDataUri(text, moduleSize = 4, margin = 1) {
 
 /**
  * Generate a UPI payment QR code as an SVG data URI.
- * @param {object} opts - { upiId, name, amount }
+ * NPCI Standard UPI Deep Link Format: upi://pay?pa=...&pn=...&am=...&cu=INR&tr=...&tn=...
+ * 
+ * @param {object} opts - { upiId, name, amount, txnRef, txnDesc }
  * @returns {string} SVG data URI or empty string if upiId is missing
  */
 function generateUPIQR(opts) {
-  const { upiId, name, amount } = opts || {};
+  const { upiId, name, amount, txnRef, txnDesc } = opts || {};
   if (!upiId || !String(upiId).trim()) return '';
 
   // IMPORTANT: Do NOT encodeURIComponent on upiId itself because NPCI scanners expect pa=someone@bank plain
   const cleanUpiId = String(upiId).trim();
   const cleanName = encodeURIComponent((name || 'Payment').trim());
+  
   let upiString = `upi://pay?pa=${cleanUpiId}&pn=${cleanName}&cu=INR`;
+
+  // Add amount if provided and valid (must be > 0)
+  if (amount && Number(amount) > 0) {
+    const cleanAmount = Number(amount).toFixed(2);
+    upiString += `&am=${cleanAmount}`;
+  }
+
+  // Optional transaction reference (for reconciliation)
+  if (txnRef) {
+    upiString += `&tr=${encodeURIComponent(String(txnRef).trim())}`;
+  }
+
+  // Optional transaction description/note
+  if (txnDesc) {
+    upiString += `&tn=${encodeURIComponent(String(txnDesc).trim())}`;
+  }
 
   try {
     return qrToSvgDataUri(upiString, 4, 1);
