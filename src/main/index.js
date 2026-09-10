@@ -164,7 +164,7 @@ function createSplashWindow() {
   <div class="logo">IW</div>
   <h1>INTERIORS WORD</h1>
   <p>BILLING SOFTWARE</p>
-  <div class="version">v3.1.0 &nbsp;•&nbsp; Professional Edition</div>
+  <div class="version">v${app.getVersion()} &nbsp;•&nbsp; Professional Edition</div>
   <div class="bar-wrap"><div class="bar"></div></div>
 </body>
 </html>`;
