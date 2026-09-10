@@ -1384,40 +1384,27 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 12px;
+    padding: 7px 16px;
     background: #f8fafc;
     border-bottom: 1.5px solid #1e293b;
   }
   .doc-title {
-    font-size: 14pt;
-    font-weight: 800;
-    letter-spacing: 1.5px;
-    color: ${brandColor};
+    font-size: 13.5pt;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #0f172a;
     text-transform: uppercase;
   }
-  .doc-sub {
-    font-size: 7.5pt;
-    color: #475569;
-    font-weight: 600;
-    letter-spacing: 0.3px;
-  }
-  .copy-types {
-    display: flex;
-    gap: 12px;
-    font-size: 7.5pt;
-    font-weight: 700;
-    color: #334155;
-  }
   .copy-badge {
-    padding: 2px 6px;
-    border: 1px solid #cbd5e1;
-    border-radius: 3px;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: #1e293b;
+    border: 1px solid #64748b;
+    border-radius: 4px;
+    padding: 3px 10px;
     background: #ffffff;
-  }
-  .copy-badge.active {
-    background: ${brandColor};
-    color: #ffffff;
-    border-color: ${brandColor};
+    text-transform: uppercase;
   }
 
   /* ── Supplier Header Row ── */
@@ -1785,15 +1772,8 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
 
   <!-- 1. Header Banner -->
   <div class="top-banner">
-    <div>
-      <div class="doc-title">${escapeHtml(data.voucherTypeLabel)}</div>
-      <div class="doc-sub">(Issued under Section 31 of CGST Act, 2017 read with Rule 46 of CGST Rules, 2017)</div>
-    </div>
-    <div class="copy-types">
-      <span class="copy-badge active">ORIGINAL FOR RECIPIENT</span>
-      <span class="copy-badge">DUPLICATE FOR TRANSPORTER</span>
-      <span class="copy-badge">TRIPLICATE FOR SUPPLIER</span>
-    </div>
+    <div class="doc-title">${escapeHtml(data.voucherTypeLabel)}</div>
+    <div class="copy-badge">${escapeHtml(voucherData.copy_type || 'ORIGINAL FOR RECIPIENT')}</div>
   </div>
 
   <!-- 2. Supplier Header -->
