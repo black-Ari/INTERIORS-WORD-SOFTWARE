@@ -22,7 +22,7 @@ export default function Settings() {
     account_no: '',
     ifsc: '',
     logo: '',
-    invoice_template: 'standard'
+    invoice_template: 'professional'
   })
 
   // Auto-Updater state
@@ -374,14 +374,15 @@ export default function Settings() {
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1.5">Default Invoice Template</label>
                 <select
-                  value={form.invoice_template}
+                  value={form.invoice_template || 'professional'}
                   onChange={e => updateForm('invoice_template', e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 >
+                  <option value="professional">🏆 Professional GST Tax Invoice (Rule 46 &amp; HSN Summary - Recommended)</option>
                   <option value="interiors">🏢 Interiors World (Custom Layout)</option>
                   <option value="standard">📄 Standard Template (Familiar Layout)</option>
-                  <option value="modern">✨ Modern Template (Sleek & Colorful)</option>
-                  <option value="minimalist">📝 Minimalist Template (Clean B&W)</option>
+                  <option value="modern">✨ Modern Template (Sleek &amp; Colorful)</option>
+                  <option value="minimalist">📝 Minimalist Template (Clean B&amp;W)</option>
                   <option value="executive">👑 Executive Brand Template (Matches Logo Colors)</option>
                 </select>
               </div>

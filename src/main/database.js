@@ -157,7 +157,10 @@ function initDatabase(dbPath) {
 
   // Safe migration: Add invoice_template column if it doesn't exist
   try {
-    db.prepare('ALTER TABLE company_profile ADD COLUMN invoice_template TEXT DEFAULT "standard"').run();
+    db.prepare('ALTER TABLE company_profile ADD COLUMN invoice_template TEXT DEFAULT "professional"').run();
+  } catch (err) {}
+  try {
+    db.prepare("UPDATE company_profile SET invoice_template = 'professional' WHERE invoice_template IS NULL OR invoice_template = 'standard'").run();
   } catch (err) {}
 
   // Safe migration: Add upi_id column if it doesn't exist

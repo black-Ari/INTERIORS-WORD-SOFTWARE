@@ -4,98 +4,25 @@ import { BrowserWindow, app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 
-// ---------------------------------------------------------------------------
-// Number to Indian Words
-// ---------------------------------------------------------------------------
-
-function numberToIndianWords(num) {
-  if (num === 0) return 'Rupees Zero Only';
-
-  const isNegative = num < 0;
-  num = Math.abs(num);
-
-  // Split into integer and decimal (paise)
-  const intPart = Math.floor(num);
-  const decPart = Math.round((num - intPart) * 100);
-
-  const ones = [
-    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
-    'Seventeen', 'Eighteen', 'Nineteen'
-  ];
-
-  const tens = [
-    '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'
-  ];
-
-  function twoDigits(n) {
-    if (n < 20) return ones[n];
-    return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
-  }
-
-  function threeDigits(n) {
-    if (n === 0) return '';
-    const h = Math.floor(n / 100);
-    const rest = n % 100;
-    let result = '';
-    if (h) result += ones[h] + ' Hundred';
-    if (h && rest) result += ' and ';
-    if (rest) result += twoDigits(rest);
-    return result;
-  }
-
-  // Indian numbering: ones/tens/hundreds (3 digits), then thousands (2 digits), lakhs (2 digits), crores (2 digits)...
-  function convertIndian(n) {
-    if (n === 0) return '';
-
-    const parts = [];
-    // First take last 3 digits
-    const hundreds = n % 1000;
-    n = Math.floor(n / 1000);
-
-    if (n > 0) {
-      // Now groups of 2 digits: thousands, lakhs, crores, etc.
-      const groups = [];
-      while (n > 0) {
-        groups.push(n % 100);
-        n = Math.floor(n / 100);
-      }
-
-      const labels = ['Thousand', 'Lakh', 'Crore', 'Arab', 'Kharab'];
-
-      for (let i = groups.length - 1; i >= 0; i--) {
-        if (groups[i] > 0) {
-          parts.push(twoDigits(groups[i]) + ' ' + (labels[i] || ''));
-        }
-      }
-    }
-
-    if (hundreds > 0) {
-      parts.push(threeDigits(hundreds));
-    }
-
-    return parts.join(' ');
-  }
-
-  let result = isNegative ? 'Minus ' : '';
-  result += 'Rupees ' + convertIndian(intPart);
-  if (decPart > 0) {
-    result += ' and ' + twoDigits(decPart) + ' Paise';
-  }
-  result += ' Only';
-
-  return result;
-}
-
-import { generateStandardTemplate, generateModernTemplate, generateMinimalistTemplate, generateExecutiveTemplate, generateInteriorsTemplate } from './pdfTemplates.js';
+import {
+  generateProfessionalGSTTemplate,
+  generateInteriorsTemplate,
+  generateStandardTemplate,
+  generateModernTemplate,
+  generateMinimalistTemplate,
+  generateExecutiveTemplate,
+  numberToIndianWords
+} from './pdfTemplates.js';
 
 function generateInvoiceHTML(voucherData, companyData) {
-  const template = companyData.invoice_template || 'standard';
+  const template = companyData.invoice_template || 'professional';
   if (template === 'modern') return generateModernTemplate(voucherData, companyData);
   if (template === 'minimalist') return generateMinimalistTemplate(voucherData, companyData);
   if (template === 'executive') return generateExecutiveTemplate(voucherData, companyData);
   if (template === 'interiors') return generateInteriorsTemplate(voucherData, companyData);
-  return generateStandardTemplate(voucherData, companyData);
+  if (template === 'standard') return generateProfessionalGSTTemplate(voucherData, companyData);
+  // Default to the comprehensive Rule 46 professional GST template
+  return generateProfessionalGSTTemplate(voucherData, companyData);
 }
 
 // ---------------------------------------------------------------------------

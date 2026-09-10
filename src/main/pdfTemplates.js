@@ -1,4 +1,78 @@
-import { numberToIndianWords } from './pdfService.js';
+export function numberToIndianWords(num) {
+  if (num === 0 || num == null || isNaN(num)) return 'Rupees Zero Only';
+
+  const isNegative = num < 0;
+  num = Math.abs(num);
+
+  const intPart = Math.floor(num);
+  const decPart = Math.round((num - intPart) * 100);
+
+  const ones = [
+    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen'
+  ];
+
+  const tens = [
+    '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'
+  ];
+
+  function twoDigits(n) {
+    if (n < 20) return ones[n];
+    return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+  }
+
+  function threeDigits(n) {
+    if (n === 0) return '';
+    const h = Math.floor(n / 100);
+    const rest = n % 100;
+    let result = '';
+    if (h) result += ones[h] + ' Hundred';
+    if (h && rest) result += ' and ';
+    if (rest) result += twoDigits(rest);
+    return result;
+  }
+
+  function convertIndian(n) {
+    if (n === 0) return '';
+
+    const parts = [];
+    const hundreds = n % 1000;
+    n = Math.floor(n / 1000);
+
+    if (n > 0) {
+      const groups = [];
+      while (n > 0) {
+        groups.push(n % 100);
+        n = Math.floor(n / 100);
+      }
+
+      const labels = ['Thousand', 'Lakh', 'Crore', 'Arab', 'Kharab'];
+
+      for (let i = groups.length - 1; i >= 0; i--) {
+        if (groups[i] > 0) {
+          parts.push(twoDigits(groups[i]) + ' ' + (labels[i] || ''));
+        }
+      }
+    }
+
+    if (hundreds > 0) {
+      parts.push(threeDigits(hundreds));
+    }
+
+    return parts.join(' ');
+  }
+
+  let result = isNegative ? 'Minus ' : '';
+  result += 'Rupees ' + convertIndian(intPart);
+  if (decPart > 0) {
+    result += ' and ' + twoDigits(decPart) + ' Paise';
+  }
+  result += ' Only';
+
+  return result;
+}
+
 import { generateUPIQR } from './qrGenerator.js';
 
 function escapeHtml(str) {
@@ -184,6 +258,7 @@ function buildTemplateData(voucherData, companyData) {
 
   const isInterstate = computed.isInterstate;
   const amountInWords = numberToIndianWords(computed.netAmount || 0);
+  const taxAmountInWords = numberToIndianWords(computed.totalTax || 0);
   const voucherTypeLabel = {
     sales: 'TAX INVOICE',
     purchase: 'PURCHASE INVOICE',
@@ -205,6 +280,7 @@ function buildTemplateData(voucherData, companyData) {
     computed,
     isInterstate,
     amountInWords,
+    taxAmountInWords,
     voucherTypeLabel,
     qrDataUri
   };
@@ -1153,3 +1229,850 @@ export function generateInteriorsTemplate(voucherData, companyData) {
 </body>
 </html>`;
 }
+
+// ---------------------------------------------------------------------------
+// 🏆 Premier Professional GST Tax Invoice (Rule 46 & HSN Breakdown)
+// ---------------------------------------------------------------------------
+
+export function generateProfessionalGSTTemplate(voucherData, companyData) {
+  const data = buildTemplateData(voucherData, companyData);
+  const c = data.computed;
+  const brandColor = companyData.theme_color || '#1e3a8a';
+
+  const isInterstate = data.isInterstate;
+  const stateCode = companyData.state_code || '';
+  const stateName = companyData.state_name || '';
+
+  // Derive PAN from GSTIN if 15 chars (chars 3..12)
+  let panNumber = '';
+  if (companyData.gstin && companyData.gstin.length >= 15) {
+    panNumber = companyData.gstin.substring(2, 12);
+  }
+
+  const placeOfSupply = voucherData.place_of_supply
+    || (voucherData.ledger_state_code
+      ? `${voucherData.ledger_state_code}${voucherData.ledger_state_name ? ' - ' + voucherData.ledger_state_name : ''}`
+      : (stateCode ? `${stateCode}${stateName ? ' - ' + stateName : ''}` : ''));
+
+  /* ── 1. Line Item Rows ── */
+  const itemRows = c.items.map((item, idx) => {
+    const qty = Number(item.quantity) || 0;
+    const rate = Number(item.rate) || 0;
+    const discPct = Number(item.discount_percent) || 0;
+    const gstRate = Number(item.gst_rate) || 0;
+    const taxable = item.taxableAmount ?? (qty * rate * (1 - discPct / 100));
+    const cgst = item.cgst_amount || 0;
+    const sgst = item.sgst_amount || 0;
+    const igst = item.igst_amount || 0;
+    const lineTotal = item.lineTotal ?? (taxable + (isInterstate ? igst : cgst + sgst));
+    const halfRate = (gstRate / 2).toFixed(1);
+
+    if (isInterstate) {
+      return `<tr>
+        <td class="c">${idx + 1}</td>
+        <td class="l">
+          <div class="item-name">${escapeHtml(item.description || item.item_name || '')}</div>
+        </td>
+        <td class="c font-mono">${escapeHtml((item.hsn_code || '').trim() || '—')}</td>
+        <td class="c">${formatQty(qty)}</td>
+        <td class="c">${escapeHtml(item.unit || '')}</td>
+        <td class="r">${formatCurrency(rate)}</td>
+        <td class="c">${discPct > 0 ? discPct + '%' : '—'}</td>
+        <td class="r font-bold">${formatCurrency(taxable)}</td>
+        <td class="r">
+          <div>${formatCurrency(igst)}</div>
+          <div class="tax-rate-sub">(${gstRate}%)</div>
+        </td>
+        <td class="r font-bold">${formatCurrency(lineTotal)}</td>
+      </tr>`;
+    }
+
+    return `<tr>
+      <td class="c">${idx + 1}</td>
+      <td class="l">
+        <div class="item-name">${escapeHtml(item.description || item.item_name || '')}</div>
+      </td>
+      <td class="c font-mono">${escapeHtml((item.hsn_code || '').trim() || '—')}</td>
+      <td class="c">${formatQty(qty)}</td>
+      <td class="c">${escapeHtml(item.unit || '')}</td>
+      <td class="r">${formatCurrency(rate)}</td>
+      <td class="c">${discPct > 0 ? discPct + '%' : '—'}</td>
+      <td class="r font-bold">${formatCurrency(taxable)}</td>
+      <td class="r">
+        <div>${formatCurrency(cgst)}</div>
+        <div class="tax-rate-sub">(${halfRate}%)</div>
+      </td>
+      <td class="r">
+        <div>${formatCurrency(sgst)}</div>
+        <div class="tax-rate-sub">(${halfRate}%)</div>
+      </td>
+      <td class="r font-bold">${formatCurrency(lineTotal)}</td>
+    </tr>`;
+  }).join('');
+
+  /* ── 2. HSN Summary Rows ── */
+  const hsnRows = data.taxGroupsDetailed
+    .filter((g) => g.gstRate > 0 || g.taxableAmount > 0)
+    .map((g) => {
+      if (isInterstate) {
+        return `<tr>
+          <td class="c font-mono"><strong>${escapeHtml(g.hsn)}</strong></td>
+          <td class="r font-bold">${formatCurrency(g.taxableAmount)}</td>
+          <td class="c">${g.gstRate}%</td>
+          <td class="r">${formatCurrency(g.igst)}</td>
+          <td class="r font-bold">${formatCurrency(g.totalTax)}</td>
+        </tr>`;
+      }
+      const halfRate = (g.gstRate / 2).toFixed(1);
+      return `<tr>
+        <td class="c font-mono"><strong>${escapeHtml(g.hsn)}</strong></td>
+        <td class="r font-bold">${formatCurrency(g.taxableAmount)}</td>
+        <td class="c">${halfRate}%</td>
+        <td class="r">${formatCurrency(g.cgst)}</td>
+        <td class="c">${halfRate}%</td>
+        <td class="r">${formatCurrency(g.sgst)}</td>
+        <td class="r font-bold">${formatCurrency(g.totalTax)}</td>
+      </tr>`;
+    }).join('');
+
+  const received = Number(voucherData.received_amount) || 0;
+  const balance = Math.round((c.netAmount - received) * 100) / 100;
+  const paymentMode = voucherData.payment_mode || 'Credit / Bank Transfer';
+
+  const defaultTerms =
+    '1. Goods once sold will not be taken back or exchanged.\n' +
+    '2. Payment is due upon receipt of invoice.\n' +
+    '3. 18% interest per annum will be charged on overdue payments.\n' +
+    '4. All disputes are subject to local jurisdiction only.';
+  const termsText = companyData.terms || defaultTerms;
+  const termsHtml = termsText.split('\n').filter(Boolean).map((t) => `<li>${escapeHtml(t.replace(/^[0-9]+[.\-)]\s*/, ''))}</li>`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tax Invoice - ${escapeHtml(voucherData.voucher_number || '')}</title>
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 8mm 8mm 8mm 8mm;
+  }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 9.5pt;
+    color: #0f172a;
+    background: #ffffff;
+    line-height: 1.35;
+  }
+
+  /* ── Master Box ── */
+  .invoice-box {
+    width: 100%;
+    border: 1.5px solid #1e293b;
+    background: #ffffff;
+  }
+
+  /* ── Top Header Banner ── */
+  .top-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: #f8fafc;
+    border-bottom: 1.5px solid #1e293b;
+  }
+  .doc-title {
+    font-size: 14pt;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: ${brandColor};
+    text-transform: uppercase;
+  }
+  .doc-sub {
+    font-size: 7.5pt;
+    color: #475569;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .copy-types {
+    display: flex;
+    gap: 12px;
+    font-size: 7.5pt;
+    font-weight: 700;
+    color: #334155;
+  }
+  .copy-badge {
+    padding: 2px 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 3px;
+    background: #ffffff;
+  }
+  .copy-badge.active {
+    background: ${brandColor};
+    color: #ffffff;
+    border-color: ${brandColor};
+  }
+
+  /* ── Supplier Header Row ── */
+  .supplier-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1.5px solid #1e293b;
+    background: #ffffff;
+    gap: 16px;
+  }
+  .supplier-logo img {
+    max-height: 60px;
+    max-width: 140px;
+    object-fit: contain;
+  }
+  .supplier-logo-placeholder {
+    width: 60px;
+    height: 60px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, ${brandColor}, #0284c7);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16pt;
+    font-weight: 900;
+  }
+  .supplier-info {
+    flex: 1;
+  }
+  .company-title {
+    font-size: 14pt;
+    font-weight: 900;
+    color: #0f172a;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .company-addr {
+    font-size: 8.5pt;
+    color: #334155;
+    margin-top: 2px;
+    line-height: 1.35;
+  }
+  .company-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 4px;
+    font-size: 8.5pt;
+  }
+  .badge-item strong {
+    color: #0f172a;
+  }
+
+  /* ── 2-Column Party & Invoice Details Grid ── */
+  .meta-grid {
+    display: flex;
+    border-bottom: 1.5px solid #1e293b;
+  }
+  .meta-col {
+    padding: 8px 12px;
+  }
+  .meta-col.buyer {
+    flex: 1.25;
+    border-right: 1.5px solid #1e293b;
+  }
+  .meta-col.invoice-det {
+    flex: 1;
+  }
+  .sec-header {
+    font-size: 8pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: ${brandColor};
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 3px;
+    margin-bottom: 5px;
+  }
+  .buyer-name {
+    font-size: 11pt;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 2px;
+  }
+  .buyer-addr {
+    font-size: 8.5pt;
+    color: #334155;
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+  .detail-row {
+    display: flex;
+    font-size: 8.5pt;
+    margin-bottom: 2.5px;
+    align-items: baseline;
+  }
+  .detail-row .lbl {
+    width: 115px;
+    color: #475569;
+    flex-shrink: 0;
+  }
+  .detail-row .val {
+    font-weight: 600;
+    color: #0f172a;
+  }
+  .detail-row .val.highlight {
+    font-size: 10pt;
+    color: ${brandColor};
+    font-weight: 800;
+  }
+
+  /* ── Items Table ── */
+  .table-container {
+    width: 100%;
+    border-bottom: 1.5px solid #1e293b;
+  }
+  .items-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+  }
+  .items-table thead th {
+    background: #f1f5f9;
+    color: #0f172a;
+    font-weight: 800;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    padding: 6px 4px;
+    border: 1px solid #94a3b8;
+    border-top: none;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0.3px;
+  }
+  .items-table tbody td {
+    padding: 5px 4px;
+    border: 1px solid #cbd5e1;
+    vertical-align: middle;
+    color: #1e293b;
+  }
+  .items-table tbody tr:nth-child(even) {
+    background: #fafafa;
+  }
+  .items-table tfoot td {
+    background: #f8fafc;
+    border: 1px solid #94a3b8;
+    padding: 6px 4px;
+    font-weight: 800;
+    font-size: 8.5pt;
+  }
+  .item-name {
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .tax-rate-sub {
+    font-size: 7pt;
+    color: #64748b;
+    font-weight: 600;
+  }
+
+  /* ── Alignment & Utility ── */
+  .c { text-align: center; }
+  .r { text-align: right; }
+  .l { text-align: left; }
+  .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+  .font-bold { font-weight: 800; color: #0f172a; }
+
+  /* ── HSN Summary Section ── */
+  .hsn-box {
+    padding: 6px 10px;
+    background: #ffffff;
+    border-bottom: 1.5px solid #1e293b;
+  }
+  .hsn-title {
+    font-size: 8pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: ${brandColor};
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .hsn-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8pt;
+  }
+  .hsn-table thead th {
+    background: #f8fafc;
+    color: #334155;
+    font-weight: 800;
+    font-size: 7pt;
+    text-transform: uppercase;
+    padding: 4px 5px;
+    border: 1px solid #cbd5e1;
+    text-align: center;
+  }
+  .hsn-table tbody td {
+    padding: 4px 5px;
+    border: 1px solid #e2e8f0;
+    color: #1e293b;
+  }
+  .hsn-table tfoot td {
+    background: #f1f5f9;
+    font-weight: 800;
+    border: 1px solid #94a3b8;
+    padding: 4px 5px;
+  }
+  .tax-words-bar {
+    font-size: 7.5pt;
+    margin-top: 4px;
+    color: #475569;
+  }
+  .tax-words-bar strong {
+    color: #0f172a;
+  }
+
+  /* ── Bottom Section: Bank / QR & Totals / Signatory ── */
+  .bot-grid {
+    display: flex;
+    background: #ffffff;
+  }
+  .bot-left {
+    flex: 1.35;
+    border-right: 1.5px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+  }
+  .bot-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Bank & QR */
+  .bank-card {
+    display: flex;
+    gap: 12px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #cbd5e1;
+    background: #ffffff;
+    align-items: center;
+  }
+  .qr-frame {
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .qr-frame img {
+    width: 70px;
+    height: 70px;
+    display: block;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+  }
+  .qr-caption {
+    font-size: 6.5pt;
+    font-weight: 800;
+    color: ${brandColor};
+    margin-top: 2px;
+    text-transform: uppercase;
+  }
+  .bank-details {
+    font-size: 8pt;
+    line-height: 1.45;
+  }
+  .bank-details .b-hd {
+    font-size: 8pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: ${brandColor};
+    margin-bottom: 2px;
+  }
+
+  /* Terms */
+  .terms-card {
+    padding: 6px 10px;
+    flex: 1;
+  }
+  .terms-hd {
+    font-size: 7.5pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #475569;
+    margin-bottom: 2px;
+  }
+  .terms-list {
+    list-style: decimal inside;
+    font-size: 7.2pt;
+    color: #475569;
+    line-height: 1.35;
+  }
+
+  /* Right Side: Totals Summary */
+  .totals-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+  }
+  .totals-table td {
+    padding: 3.5px 10px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .totals-table td:last-child {
+    text-align: right;
+    font-weight: 600;
+  }
+  .totals-table tr.grand-row td {
+    background: #f1f5f9;
+    border-top: 1.5px solid #1e293b;
+    border-bottom: 1.5px solid #1e293b;
+    padding: 6px 10px;
+    font-size: 11pt;
+    font-weight: 900;
+    color: ${brandColor};
+  }
+  .words-container {
+    padding: 6px 10px;
+    font-size: 8pt;
+    border-bottom: 1px solid #cbd5e1;
+    background: #f8fafc;
+    line-height: 1.3;
+  }
+  .words-container strong {
+    color: #0f172a;
+  }
+
+  /* Signatory Area */
+  .sign-area {
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 75px;
+    text-align: right;
+  }
+  .sign-for {
+    font-size: 8pt;
+    font-weight: 800;
+    color: #0f172a;
+  }
+  .sign-placeholder {
+    font-size: 8pt;
+    color: #334155;
+    border-top: 1px dashed #94a3b8;
+    padding-top: 3px;
+    margin-top: 35px;
+    font-weight: 700;
+  }
+
+  /* ── Bottom Disclaimer ── */
+  .inv-footer {
+    border-top: 1px solid #1e293b;
+    text-align: center;
+    padding: 4px;
+    font-size: 7pt;
+    color: #64748b;
+    background: #f8fafc;
+  }
+</style>
+</head>
+<body>
+
+<div class="invoice-box">
+
+  <!-- 1. Header Banner -->
+  <div class="top-banner">
+    <div>
+      <div class="doc-title">${escapeHtml(data.voucherTypeLabel)}</div>
+      <div class="doc-sub">(Issued under Section 31 of CGST Act, 2017 read with Rule 46 of CGST Rules, 2017)</div>
+    </div>
+    <div class="copy-types">
+      <span class="copy-badge active">ORIGINAL FOR RECIPIENT</span>
+      <span class="copy-badge">DUPLICATE FOR TRANSPORTER</span>
+      <span class="copy-badge">TRIPLICATE FOR SUPPLIER</span>
+    </div>
+  </div>
+
+  <!-- 2. Supplier Header -->
+  <div class="supplier-row">
+    <div class="supplier-logo">
+      ${companyData.logo
+        ? `<img src="${companyData.logo}" alt="Logo">`
+        : `<div class="supplier-logo-placeholder">${escapeHtml((companyData.name || 'IW').substring(0, 2).toUpperCase())}</div>`
+      }
+    </div>
+    <div class="supplier-info">
+      <div class="company-title">${escapeHtml(companyData.name || 'INTERIORS WORD')}</div>
+      <div class="company-addr">${escapeHtml(companyData.address || 'Interior Furnishing, Blinds, Curtains, Wallpapers & Wooden Flooring')}</div>
+      <div class="company-badges">
+        <span class="badge-item">GSTIN: <strong>${escapeHtml(companyData.gstin || '—')}</strong></span>
+        ${stateCode ? `<span class="badge-item">State: <strong>${escapeHtml(stateName ? stateName + ' (' + stateCode + ')' : stateCode)}</strong></span>` : ''}
+        ${panNumber ? `<span class="badge-item">PAN: <strong>${escapeHtml(panNumber)}</strong></span>` : ''}
+        ${companyData.phone ? `<span class="badge-item">Mobile: <strong>${escapeHtml(companyData.phone)}</strong></span>` : ''}
+        ${companyData.email ? `<span class="badge-item">Email: <strong>${escapeHtml(companyData.email)}</strong></span>` : ''}
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Details of Receiver & Tax Invoice -->
+  <div class="meta-grid">
+    <div class="meta-col buyer">
+      <div class="sec-header">Details of Receiver | Billed to:</div>
+      <div class="buyer-name">${escapeHtml(voucherData.ledger_name || 'Counter Sale / Cash')}</div>
+      ${voucherData.ledger_address ? `<div class="buyer-addr">${escapeHtml(voucherData.ledger_address)}</div>` : ''}
+      <div class="detail-row">
+        <span class="lbl">Mobile / Phone:</span>
+        <span class="val">${escapeHtml(voucherData.ledger_phone || '—')}</span>
+      </div>
+      <div class="detail-row">
+        <span class="lbl">GSTIN / UIN:</span>
+        <span class="val font-mono">${escapeHtml(voucherData.ledger_gstin || 'Unregistered Consumer')}</span>
+      </div>
+      <div class="detail-row">
+        <span class="lbl">State & Code:</span>
+        <span class="val">${escapeHtml((voucherData.ledger_state_name || stateName || '') + (voucherData.ledger_state_code ? ' (' + voucherData.ledger_state_code + ')' : ''))}</span>
+      </div>
+      ${voucherData.ship_to ? `
+        <div style="margin-top:4px;border-top:1px dashed #cbd5e1;padding-top:4px;">
+          <div class="sec-header" style="margin-bottom:2px;">Shipped to / Consignee:</div>
+          <div class="buyer-addr">${escapeHtml(voucherData.ship_to)}</div>
+        </div>
+      ` : ''}
+    </div>
+
+    <div class="meta-col invoice-det">
+      <div class="sec-header">Tax Invoice Details:</div>
+      <div class="detail-row">
+        <span class="lbl">Invoice No:</span>
+        <span class="val highlight">${escapeHtml(voucherData.voucher_number || '')}</span>
+      </div>
+      <div class="detail-row">
+        <span class="lbl">Invoice Date:</span>
+        <span class="val">${escapeHtml(formatDate(voucherData.date))}</span>
+      </div>
+      <div class="detail-row">
+        <span class="lbl">Place of Supply:</span>
+        <span class="val">${escapeHtml(placeOfSupply || '—')}</span>
+      </div>
+      <div class="detail-row">
+        <span class="lbl">Reverse Charge:</span>
+        <span class="val">No</span>
+      </div>
+      ${voucherData.po_number ? `
+        <div class="detail-row">
+          <span class="lbl">PO Number:</span>
+          <span class="val">${escapeHtml(String(voucherData.po_number))}</span>
+        </div>
+      ` : ''}
+      ${voucherData.po_date ? `
+        <div class="detail-row">
+          <span class="lbl">PO Date:</span>
+          <span class="val">${escapeHtml(formatDate(voucherData.po_date))}</span>
+        </div>
+      ` : ''}
+      <div class="detail-row">
+        <span class="lbl">Payment Mode:</span>
+        <span class="val">${escapeHtml(paymentMode)}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Item Particulars Table -->
+  <div class="table-container">
+    <table class="items-table">
+      <thead>
+        <tr>
+          ${isInterstate ? `
+            <th style="width:3.5%;">#</th>
+            <th style="width:28%;text-align:left;">Description of Goods / Services</th>
+            <th style="width:9%;">HSN/SAC</th>
+            <th style="width:7%;">Qty</th>
+            <th style="width:5%;">Unit</th>
+            <th style="width:9%;">Rate (₹)</th>
+            <th style="width:5%;">Disc</th>
+            <th style="width:11.5%;">Taxable (₹)</th>
+            <th style="width:10%;">IGST (₹)</th>
+            <th style="width:12%;">Total (₹)</th>
+          ` : `
+            <th style="width:3.5%;">#</th>
+            <th style="width:26%;text-align:left;">Description of Goods / Services</th>
+            <th style="width:9%;">HSN/SAC</th>
+            <th style="width:6.5%;">Qty</th>
+            <th style="width:5%;">Unit</th>
+            <th style="width:9%;">Rate (₹)</th>
+            <th style="width:5%;">Disc</th>
+            <th style="width:11%;">Taxable (₹)</th>
+            <th style="width:8.5%;">CGST (₹)</th>
+            <th style="width:8.5%;">SGST (₹)</th>
+            <th style="width:10%;">Total (₹)</th>
+          `}
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows || `<tr><td colspan="${isInterstate ? 10 : 11}" class="c" style="padding:14px;color:#94a3b8;">No items added</td></tr>`}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" class="c font-bold">TOTAL</td>
+          <td class="c font-bold">${formatQty(c.sumQty)}</td>
+          <td colspan="3"></td>
+          <td class="r font-bold">₹ ${formatCurrency(c.sumTaxable)}</td>
+          ${isInterstate ? `
+            <td class="r font-bold">₹ ${formatCurrency(c.igstTotal)}</td>
+          ` : `
+            <td class="r font-bold">₹ ${formatCurrency(c.cgstTotal)}</td>
+            <td class="r font-bold">₹ ${formatCurrency(c.sgstTotal)}</td>
+          `}
+          <td class="r font-bold">₹ ${formatCurrency(c.grandTotal)}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- 5. HSN/SAC Wise Tax Summary Table -->
+  <div class="hsn-box">
+    <div class="hsn-title">HSN / SAC Wise Tax Breakdown Table (GST Return Summary)</div>
+    <table class="hsn-table">
+      <thead>
+        <tr>
+          <th style="width:14%;">HSN/SAC Code</th>
+          <th style="width:18%;">Taxable Amount (₹)</th>
+          ${isInterstate ? `
+            <th style="width:14%;">IGST Rate (%)</th>
+            <th style="width:18%;">IGST Amount (₹)</th>
+          ` : `
+            <th style="width:11%;">CGST Rate</th>
+            <th style="width:15%;">CGST Amount (₹)</th>
+            <th style="width:11%;">SGST Rate</th>
+            <th style="width:15%;">SGST Amount (₹)</th>
+          `}
+          <th style="width:18%;">Total Tax Amount (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${hsnRows || `<tr><td colspan="${isInterstate ? 5 : 7}" class="c" style="padding:6px;color:#94a3b8;">No taxable items</td></tr>`}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td class="c font-bold">TOTAL</td>
+          <td class="r font-bold">₹ ${formatCurrency(c.sumTaxable)}</td>
+          ${isInterstate ? `
+            <td></td>
+            <td class="r font-bold">₹ ${formatCurrency(c.igstTotal)}</td>
+          ` : `
+            <td></td>
+            <td class="r font-bold">₹ ${formatCurrency(c.cgstTotal)}</td>
+            <td></td>
+            <td class="r font-bold">₹ ${formatCurrency(c.sgstTotal)}</td>
+          `}
+          <td class="r font-bold">₹ ${formatCurrency(c.totalTax)}</td>
+        </tr>
+      </tfoot>
+    </table>
+    <div class="tax-words-bar">
+      Total Tax Amount in Words: <strong>${escapeHtml(data.taxAmountInWords)}</strong>
+    </div>
+  </div>
+
+  <!-- 6. Bottom Split: Bank / QR / Terms (Left) + Totals / Signature (Right) -->
+  <div class="bot-grid">
+    <div class="bot-left">
+      <div class="bank-card">
+        ${data.qrDataUri ? `
+          <div class="qr-frame">
+            <img src="${data.qrDataUri}" alt="UPI QR">
+            <div class="qr-caption">Scan to Pay UPI</div>
+          </div>
+        ` : ''}
+        <div class="bank-details">
+          <div class="b-hd">Bank Account Details (NEFT / RTGS / IMPS)</div>
+          <div>Bank Name: <strong>${escapeHtml(companyData.bank_name || '—')}</strong></div>
+          <div>Account Number: <strong>${escapeHtml(companyData.account_no || '—')}</strong></div>
+          <div>IFSC Code: <strong class="font-mono">${escapeHtml(companyData.ifsc || '—')}</strong></div>
+          <div>Account Name: <strong>${escapeHtml(companyData.name || 'INTERIORS WORD')}</strong></div>
+          ${companyData.upi_id ? `<div>UPI ID: <strong class="font-mono">${escapeHtml(companyData.upi_id)}</strong></div>` : ''}
+        </div>
+      </div>
+
+      <div class="terms-card">
+        <div class="terms-hd">Terms & Conditions:</div>
+        <ul class="terms-list">
+          ${termsHtml}
+        </ul>
+      </div>
+    </div>
+
+    <div class="bot-right">
+      <table class="totals-table">
+        <tbody>
+          <tr>
+            <td>Total Taxable Value</td>
+            <td>₹ ${formatCurrency(c.sumTaxable)}</td>
+          </tr>
+          ${isInterstate ? `
+            <tr>
+              <td>Integrated Tax (IGST)</td>
+              <td>+ ₹ ${formatCurrency(c.igstTotal)}</td>
+            </tr>
+          ` : `
+            <tr>
+              <td>Central Tax (CGST)</td>
+              <td>+ ₹ ${formatCurrency(c.cgstTotal)}</td>
+            </tr>
+            <tr>
+              <td>State Tax (SGST)</td>
+              <td>+ ₹ ${formatCurrency(c.sgstTotal)}</td>
+            </tr>
+          `}
+          ${c.discountAmount > 0 ? `
+            <tr>
+              <td>Discount (Less)</td>
+              <td>- ₹ ${formatCurrency(c.discountAmount)}</td>
+            </tr>
+          ` : ''}
+          ${Math.abs(c.roundOff) >= 0.01 ? `
+            <tr>
+              <td>Round Off (+/-)</td>
+              <td>${c.roundOff >= 0 ? '+' : ''} ₹ ${formatCurrency(c.roundOff)}</td>
+            </tr>
+          ` : ''}
+          <tr class="grand-row">
+            <td>Grand Total (Net Amount)</td>
+            <td>₹ ${formatCurrency(c.netAmount)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="words-container">
+        <strong>Invoice Amount in Words:</strong><br>
+        <em>${escapeHtml(data.amountInWords)}</em>
+      </div>
+
+      ${(received > 0 || balance > 0) ? `
+        <div style="padding:4px 10px;font-size:8pt;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;">
+          <span>Received: <strong>₹ ${formatCurrency(received)}</strong></span>
+          <span>Balance Due: <strong style="color:#dc2626;">₹ ${formatCurrency(balance)}</strong></span>
+        </div>
+      ` : ''}
+
+      <div class="sign-area">
+        <div class="sign-for">For, ${escapeHtml(companyData.name || 'INTERIORS WORD')}</div>
+        <div class="sign-placeholder">Authorized Signatory / Seal</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Footer -->
+  <div class="inv-footer">
+    This is a Computer Generated Tax Invoice issued in accordance with the Goods and Services Tax Act.
+  </div>
+
+</div>
+
+</body>
+</html>`;
+}
+
