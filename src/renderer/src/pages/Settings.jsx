@@ -387,11 +387,11 @@ export default function Settings() {
                   onChange={e => updateForm('invoice_template', e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 >
-                  <option value="professional">🏆 Professional Classic (Rule 46 &amp; HSN Breakdown - Default)</option>
-                  <option value="professional_modern">💎 Professional Modern (Emerald &amp; Slate Accent)</option>
-                  <option value="professional_corporate">🏢 Professional Corporate (Royal Blue &amp; Charcoal)</option>
-                  <option value="professional_tally">📊 Professional Tally Style (High Density Compact)</option>
-                  <option value="professional_minimalist">🖨️ Professional Minimalist (B&amp;W Laser Print Ready)</option>
+                  <option value="professional">🏆 Professional Classic (Rule 46 Standard Boxed Grid - Default)</option>
+                  <option value="professional_modern">💎 Modern Tech Studio (Floating Cards &amp; Emerald Hero)</option>
+                  <option value="professional_corporate">🏢 Corporate Enterprise (Navy Full-Bleed Executive Banner)</option>
+                  <option value="professional_tally">📊 TallyPrime ERP Style (Authentic Dual Grid &amp; Ledger Lines)</option>
+                  <option value="professional_minimalist">✨ Architectural Minimalist (Monochrome Luxury Fine-Line)</option>
                 </select>
               </div>
 
