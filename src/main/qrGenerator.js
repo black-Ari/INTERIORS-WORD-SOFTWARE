@@ -34,11 +34,13 @@ function qrToSvgDataUri(text, margin = 4) {
 
 /**
  * Generate a standard Indian NPCI UPI payment QR code as an SVG data URI.
- * @param {object} opts - { upiId, name, amount, voucherNumber }
+ * NPCI Standard UPI Deep Link Format: upi://pay?pa=...&pn=...&am=...&cu=INR&tr=...&tn=...
+ * 
+ * @param {object} opts - { upiId, name, amount, voucherNumber, txnRef, txnDesc }
  * @returns {string} SVG data URI or empty string if upiId is missing
  */
 function generateUPIQR(opts) {
-  const { upiId, name, amount, voucherNumber } = opts || {};
+  const { upiId, name, amount, voucherNumber, txnRef, txnDesc } = opts || {};
   if (!upiId || !String(upiId).trim()) return '';
 
   let cleanUpiId = String(upiId).trim();
@@ -58,11 +60,16 @@ function generateUPIQR(opts) {
     upiString += `&am=${numAmount.toFixed(2)}`;
   }
 
-  if (voucherNumber && String(voucherNumber).trim()) {
-    const cleanNote = String(voucherNumber).trim().replace(/[^a-zA-Z0-9\-\/]/g, '');
-    if (cleanNote) {
-      upiString += `&tn=Invoice%20${encodeURIComponent(cleanNote)}`;
-    }
+  // Optional transaction reference (for reconciliation)
+  const ref = txnRef || (voucherNumber ? String(voucherNumber).trim().replace(/[^a-zA-Z0-9\-\/]/g, '') : '');
+  if (ref) {
+    upiString += `&tr=${encodeURIComponent(ref)}`;
+  }
+
+  // Optional transaction description / note
+  const desc = txnDesc || (voucherNumber ? `Invoice ${String(voucherNumber).trim().replace(/[^a-zA-Z0-9\-\/]/g, '')}` : '');
+  if (desc) {
+    upiString += `&tn=${encodeURIComponent(desc)}`;
   }
 
   return qrToSvgDataUri(upiString, 4);
