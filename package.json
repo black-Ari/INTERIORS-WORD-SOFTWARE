@@ -1,6 +1,6 @@
 {
   "name": "interiors-word",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "description": "INTERIORS WORD - Professional Billing Software for Interior Decoration",
   "main": "./out/main/index.js",
   "scripts": {

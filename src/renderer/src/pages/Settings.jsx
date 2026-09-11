@@ -28,7 +28,7 @@ export default function Settings() {
   })
 
   // Auto-Updater state
-  const [appVersion, setAppVersion] = useState('3.3.0')
+  const [appVersion, setAppVersion] = useState('3.4.0')
   const [updateInfo, setUpdateInfo] = useState(null)
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
   const [updateStatusText, setUpdateStatusText] = useState('')

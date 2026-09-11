@@ -108,7 +108,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
               <h2 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                 Keyboard Shortcuts Guide
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-                  v3.3.0
+                  v3.4.0
                 </span>
               </h2>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>

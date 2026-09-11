@@ -83,7 +83,7 @@ export function startPairingServer(db, port = 39281) {
         sendJson(200, {
           status: 'ok',
           companyName: comp.name || 'INTERIORS WORD',
-          version: '3.3.0'
+          version: '3.4.0'
         });
         return;
       }

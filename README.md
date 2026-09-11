@@ -1,6 +1,6 @@
 # INTERIORS WORD — Professional GST Billing & ERP Software
 
-[![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)](https://github.com/black-Ari/INTERIORS-WORD-SOFTWARE/releases/tag/v3.3.0)
+[![Version](https://img.shields.io/badge/version-3.4.0-blue.svg)](https://github.com/black-Ari/INTERIORS-WORD-SOFTWARE/releases/tag/v3.4.0)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey.svg)]()
 [![Electron](https://img.shields.io/badge/Electron-35.7.5-cyan.svg)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19.1.0-61dafb.svg)](https://react.dev/)
@@ -104,7 +104,7 @@ INTERIORS WORD v3.3.0 introduces comprehensive ERP-grade keyboard shortcuts desi
 
 ### For End Users
 Download the latest Windows setup installer from the [Releases](https://github.com/black-Ari/INTERIORS-WORD-SOFTWARE/releases/latest) page:
-- **`INTERIORS WORD Setup 3.3.0.exe`**
+- **`INTERIORS WORD Setup 3.4.0.exe`**
 
 Run the installer and follow the on-screen instructions. The application will launch with a desktop shortcut created automatically.
 
@@ -141,7 +141,7 @@ Run the installer and follow the on-screen instructions. The application will la
 ## 🏢 Company & Project Details
 
 - **Application**: INTERIORS WORD
-- **Version**: 3.3.0 (Professional Edition)
+- **Version**: 3.4.0 (Professional Edition with Mobile App Sync)
 - **Repository**: [black-Ari/INTERIORS-WORD-SOFTWARE](https://github.com/black-Ari/INTERIORS-WORD-SOFTWARE)
 
 ---

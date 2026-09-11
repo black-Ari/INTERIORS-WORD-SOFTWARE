@@ -84,7 +84,7 @@ export default function Layout({ children, onOpenShortcuts }) {
   const { dark }   = useTheme()
   const title      = pageTitles[location.pathname] || 'INTERIORS WORD'
   const pageIcon   = pageIcons[location.pathname] || '📋'
-  const [appVersion, setAppVersion] = useState('3.3.0')
+  const [appVersion, setAppVersion] = useState('3.4.0')
   const [company, setCompany]       = useState(null)
   const [showMobileModal, setShowMobileModal] = useState(false)
 
