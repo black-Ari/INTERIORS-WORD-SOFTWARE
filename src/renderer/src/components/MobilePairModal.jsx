@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
 
 export default function MobilePairModal({ isOpen, onClose }) {
-  const [pairingInfo, setPairingInfo] = useState(null);
-  const [copied, setCopied] = useState(false);
+  const [cloudConfig, setCloudConfig] = useState(null);
+  const [codeCopied, setCodeCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [syncingCloud, setSyncingCloud] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      window.api?.getMobilePairingInfo?.()
-        .then((info) => {
-          setPairingInfo(info);
+      window.api?.getCloudConfig?.()
+        .then((cConfig) => {
+          setCloudConfig(cConfig);
           setLoading(false);
         })
         .catch((err) => {
-          console.error('Failed to get mobile pairing info:', err);
+          console.error('Failed to load cloud config:', err);
           setLoading(false);
         });
     }
@@ -22,11 +25,51 @@ export default function MobilePairModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const handleCopy = () => {
-    if (pairingInfo?.serverUrl) {
-      navigator.clipboard.writeText(pairingInfo.serverUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const handleRegenerateCode = async () => {
+    setRegenerating(true);
+    setSyncMsg('Generating new unique sync code...');
+    try {
+      const res = await window.api?.regenerateSyncCodeCloud?.();
+      if (res?.success) {
+        setSyncMsg('✅ Naya Unique Sync Code generate ho gaya!');
+        const updated = await window.api?.getCloudConfig?.();
+        setCloudConfig(updated);
+      } else {
+        setSyncMsg('❌ ' + (res?.error || 'Failed to regenerate code'));
+      }
+    } catch (err) {
+      setSyncMsg('❌ ' + err.message);
+    } finally {
+      setRegenerating(false);
+      setTimeout(() => setSyncMsg(''), 4000);
+    }
+  };
+
+  const syncCode = cloudConfig?.syncId || 'Loading...';
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(syncCode);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  };
+
+  const handleCloudSyncNow = async () => {
+    setSyncingCloud(true);
+    setSyncMsg('');
+    try {
+      const res = await window.api?.syncNowCloud?.();
+      if (res?.success) {
+        setSyncMsg('✅ ' + (res.message || 'Data uploaded to Cloud successfully!'));
+        const updated = await window.api?.getCloudConfig?.();
+        setCloudConfig(updated);
+      } else {
+        setSyncMsg('❌ ' + (res?.error || res?.message || 'Sync failed'));
+      }
+    } catch (err) {
+      setSyncMsg('❌ ' + err.message);
+    } finally {
+      setSyncingCloud(false);
+      setTimeout(() => setSyncMsg(''), 4000);
     }
   };
 
@@ -42,7 +85,7 @@ export default function MobilePairModal({ isOpen, onClose }) {
             <span className="text-2xl">📱</span>
             <div>
               <h3 className="font-bold text-base leading-tight">Connect Mobile App</h3>
-              <p className="text-blue-200 text-xs mt-0.5">Two-way live billing & sync</p>
+              <p className="text-blue-200 text-xs mt-0.5">24/7 Cloud Sync (4G / 5G / Internet)</p>
             </div>
           </div>
           <button
@@ -54,61 +97,110 @@ export default function MobilePairModal({ isOpen, onClose }) {
         </div>
 
         {/* Content */}
-        <div className="p-6 flex flex-col items-center text-center">
+        <div className="p-6 flex flex-col items-center text-center space-y-4">
           {loading ? (
             <div className="py-12 flex flex-col items-center">
               <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="mt-4 text-xs text-slate-500">Generating pairing QR Code...</p>
+              <p className="mt-4 text-xs text-slate-500">Loading cloud sync details...</p>
             </div>
-          ) : pairingInfo?.qrDataUri ? (
+          ) : (
             <>
-              {/* QR Code Container */}
-              <div className="p-3 bg-white rounded-xl shadow-md border-2 border-dashed border-blue-400 mb-4 inline-block">
-                <img
-                  src={pairingInfo.qrDataUri}
-                  alt="Pairing QR Code"
-                  className="w-48 h-48 block"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 mb-4">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  PC Server Ready
-                </span>
-                <span className="text-xs text-slate-500">
-                  Port: <strong>{pairingInfo.port}</strong>
-                </span>
-              </div>
-
-              {/* IP / URL Copy Box */}
-              <div className="w-full bg-slate-50 dark:bg-slate-800/80 rounded-xl p-3 border border-slate-200 dark:border-slate-700 flex items-center justify-between mb-4">
-                <div className="text-left overflow-hidden mr-2">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">Server IP Address</div>
-                  <div className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 truncate">
-                    {pairingInfo.serverUrl}
-                  </div>
+              {/* Status Badge */}
+              <div className="w-full flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+                    Google Firebase Cloud
+                  </span>
                 </div>
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  Active 24/7
+                </span>
+              </div>
+
+              {/* Business Sync Code Card - Guaranteed High Contrast */}
+              <div className="w-full bg-slate-950 rounded-2xl p-4 border-2 border-blue-500 text-center shadow-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] uppercase font-bold text-blue-400 tracking-wider flex items-center gap-1.5">
+                    <span>🔑</span> Unique Sync Code
+                  </span>
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-900/80 text-blue-200 border border-blue-700">
+                    🔒 HID Hardware Bound
+                  </span>
+                </div>
+
+                {/* Inner Glow Display Box */}
+                <div className="bg-slate-900 border border-slate-700/80 rounded-xl py-3 px-3 my-2.5 shadow-inner flex items-center justify-center">
+                  <span
+                    className="text-3xl font-mono font-black tracking-widest select-all"
+                    style={{ color: '#34d399', textShadow: '0 0 12px rgba(52, 211, 153, 0.45)' }}
+                  >
+                    {syncCode}
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-300 mt-1">
+                  Enter this code in your phone to connect your shop
+                </p>
+                <div className="flex items-center justify-center gap-2 mt-2.5">
+                  <button
+                    onClick={handleCopyCode}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center gap-1.5 shadow-md active:scale-95"
+                  >
+                    {codeCopied ? '✓ Code Copied' : '📋 Copy Code'}
+                  </button>
+                  <button
+                    onClick={handleRegenerateCode}
+                    disabled={regenerating}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 transition-colors flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                    title="Generate a brand new random unguessable code"
+                  >
+                    {regenerating ? 'Generating...' : '🔄 New Code'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Sync Now Button */}
+              <div className="w-full">
                 <button
-                  onClick={handleCopy}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors shrink-0"
+                  onClick={handleCloudSyncNow}
+                  disabled={syncingCloud}
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-all flex items-center justify-center gap-2 disabled:opacity-60"
                 >
-                  {copied ? '✓ Copied' : 'Copy'}
+                  {syncingCloud ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Uploading PC Data to Cloud...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>☁️</span>
+                      <span>Sync Now (Upload PC Data to Cloud)</span>
+                    </>
+                  )}
                 </button>
+                {syncMsg && (
+                  <div className="text-xs text-center font-bold mt-2 p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200">
+                    {syncMsg}
+                  </div>
+                )}
+                {cloudConfig?.lastSyncedAt && !syncMsg && (
+                  <div className="text-[10px] text-slate-400 mt-1.5">
+                    Last Synced: {new Date(cloudConfig.lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                )}
               </div>
 
               {/* Step Instructions */}
               <div className="w-full text-left bg-blue-50/70 dark:bg-blue-950/40 rounded-xl p-3.5 border border-blue-100 dark:border-blue-900/40 text-xs text-slate-700 dark:text-slate-300 space-y-1.5">
-                <div className="font-bold text-blue-900 dark:text-blue-300 mb-1">How to connect in 3 steps:</div>
-                <div>1. Make sure your Phone and PC are on the <strong>same Wi-Fi</strong>.</div>
-                <div>2. Open <strong>INTERIORS WORD Mobile App</strong> on your phone.</div>
-                <div>3. Go to <strong>Sync PC</strong> tab and enter IP <strong>{pairingInfo.ip}:{pairingInfo.port}</strong> (or scan).</div>
+                <div className="font-bold text-blue-900 dark:text-blue-300 mb-1">
+                  How any user can connect their Mobile App:
+                </div>
+                <div>1. Open <strong>INTERIORS WORD Mobile App</strong> on your phone.</div>
+                <div>2. Go to <strong>Sync</strong> tab, enter your Sync Code: <strong className="font-mono text-emerald-500 dark:text-emerald-400 font-bold tracking-wider">{syncCode}</strong>.</div>
+                <div>3. Tap <strong>Connect to Business</strong> — Done! Live 4G/5G billing starts immediately.</div>
               </div>
             </>
-          ) : (
-            <div className="py-8 text-sm text-red-500">
-              Could not generate local network pairing details. Please ensure Wi-Fi is connected.
-            </div>
           )}
         </div>
 
@@ -125,4 +217,3 @@ export default function MobilePairModal({ isOpen, onClose }) {
     </div>
   );
 }
-

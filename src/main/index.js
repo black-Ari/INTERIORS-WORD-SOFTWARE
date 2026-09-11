@@ -69,7 +69,7 @@ import WhatsAppService from './whatsappService.js';
 import WhatsAppStore from './whatsappStore.js';
 import { generateReply, detectProvider, PROVIDER_NAMES, DEFAULT_MODELS } from './whatsappAiReply.js';
 import AutoUpdaterService from './autoUpdaterService.js';
-import { startPairingServer, getPairingInfo, stopPairingServer } from './pairingServer.js';
+import { getCloudConfig, saveCloudConfig, syncNow, startAutoSync, stopAutoSync, regenerateSyncCode } from './firebaseSync.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -557,7 +557,48 @@ function registerIpcHandlers() {
 
   ipcMain.handle('mobile:get-pairing-info', () => {
     try {
-      return { success: true, data: getPairingInfo(db) };
+      return { success: true, data: getCloudConfig(db) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('cloud:get-config', () => {
+    try {
+      return { success: true, data: getCloudConfig(db) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('cloud:save-config', (_event, cfg) => {
+    try {
+      const res = saveCloudConfig(cfg);
+      if (res.success && db) {
+        startAutoSync(db, 30);
+      }
+      return res;
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('cloud:sync-now', async () => {
+    try {
+      const res = await syncNow(db);
+      return res;
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('cloud:regenerate-code', async () => {
+    try {
+      const res = await regenerateSyncCode(db);
+      if (res.success && db) {
+        startAutoSync(db, 30);
+      }
+      return res;
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -928,10 +969,10 @@ if (!gotTheLock) {
       db = initDatabase(dbPath);
       debugLog('Database initialized successfully');
       try {
-        startPairingServer(db);
-        debugLog('Mobile Pairing Server started');
+        startAutoSync(db, 30);
+        debugLog('Firebase Cloud Auto Sync started');
       } catch (err) {
-        debugLog('Failed to start Mobile Pairing Server: ' + err);
+        debugLog('Failed to start Firebase Cloud Auto Sync: ' + err);
       }
     } catch (err) {
       debugLog('Failed to initialize database: ' + err);

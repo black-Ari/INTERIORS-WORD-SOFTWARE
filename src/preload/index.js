@@ -55,6 +55,10 @@ contextBridge.exposeInMainWorld('api', {
   selectFile: (opts) => ipcRenderer.invoke('app:select-file', opts),
   sendInvoiceWhatsApp: (voucherId, phone, message) => ipcRenderer.invoke('invoice:send-whatsapp', { voucherId, phone, message }),
   getMobilePairingInfo: () => invokeApi('mobile:get-pairing-info'),
+  getCloudConfig: () => invokeApi('cloud:get-config'),
+  saveCloudConfig: (cfg) => invokeApi('cloud:save-config', cfg),
+  syncNowCloud: () => invokeApi('cloud:sync-now'),
+  regenerateSyncCodeCloud: () => invokeApi('cloud:regenerate-code'),
 
   // Native WhatsApp System
   wa: {
