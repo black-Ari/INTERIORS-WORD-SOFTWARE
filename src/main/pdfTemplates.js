@@ -240,6 +240,7 @@ function computeInvoiceTotals(voucherData) {
 }
 
 function buildTemplateData(voucherData, companyData) {
+  companyData = companyData || voucherData?.company || {};
   const computed = computeInvoiceTotals(voucherData);
   const items = computed.items;
 
@@ -292,6 +293,7 @@ function buildTemplateData(voucherData, companyData) {
 // ---------------------------------------------------------------------------
 
 function renderGSTInvoiceHTML(voucherData, companyData, style) {
+  companyData = companyData || voucherData?.company || {};
   const data = buildTemplateData(voucherData, companyData);
   const c = data.computed;
   const isInterstate = data.isInterstate;
