@@ -32,13 +32,6 @@ function qrToSvgDataUri(text, margin = 4) {
   }
 }
 
-/**
- * Generate a standard Indian NPCI UPI payment QR code as an SVG data URI.
- * NPCI Standard UPI Deep Link Format: upi://pay?pa=...&pn=...&am=...&cu=INR&tr=...&tn=...
- * 
- * @param {object} opts - { upiId, name, amount, voucherNumber, txnRef, txnDesc }
- * @returns {string} SVG data URI or empty string if upiId is missing
- */
 function generateUPIQR(opts) {
   const { upiId, name, amount, voucherNumber, txnRef, txnDesc } = opts || {};
   if (!upiId || !String(upiId).trim()) return '';
