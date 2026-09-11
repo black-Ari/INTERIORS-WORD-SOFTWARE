@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import GlobalSearch from './GlobalSearch'
 import NotificationBell from './NotificationBell'
+import MobilePairModal from './MobilePairModal'
 import { useTheme } from '../context/ThemeContext'
 
 const api = window.api
@@ -85,6 +86,7 @@ export default function Layout({ children, onOpenShortcuts }) {
   const pageIcon   = pageIcons[location.pathname] || '📋'
   const [appVersion, setAppVersion] = useState('3.3.0')
   const [company, setCompany]       = useState(null)
+  const [showMobileModal, setShowMobileModal] = useState(false)
 
   useEffect(() => {
     window.api?.getVersion?.().then(v => { if (v) setAppVersion(v) }).catch(() => {})
@@ -149,6 +151,16 @@ export default function Layout({ children, onOpenShortcuts }) {
               </svg>
               <span className="hidden sm:inline font-semibold">WhatsApp</span>
               <kbd className="hidden md:inline px-1 py-0.2 rounded text-[9px] font-mono bg-emerald-200/60 text-emerald-800">F10</kbd>
+            </button>
+
+            {/* Mobile App QR Pairing Button */}
+            <button
+              onClick={() => setShowMobileModal(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 shadow-sm transition-all hover:scale-105 active:scale-95"
+              title="Connect Mobile App via QR Code"
+            >
+              <span className="text-sm">📱</span>
+              <span className="hidden sm:inline font-semibold">Mobile App</span>
             </button>
 
             {/* Shortcut hints — hidden on small screens */}
@@ -261,6 +273,12 @@ export default function Layout({ children, onOpenShortcuts }) {
           </div>
         </footer>
       </div>
+
+      {/* Mobile App QR Pairing Modal */}
+      <MobilePairModal
+        isOpen={showMobileModal}
+        onClose={() => setShowMobileModal(false)}
+      />
     </div>
   )
 }

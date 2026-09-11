@@ -69,6 +69,7 @@ import WhatsAppService from './whatsappService.js';
 import WhatsAppStore from './whatsappStore.js';
 import { generateReply, detectProvider, PROVIDER_NAMES, DEFAULT_MODELS } from './whatsappAiReply.js';
 import AutoUpdaterService from './autoUpdaterService.js';
+import { startPairingServer, getPairingInfo, stopPairingServer } from './pairingServer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -554,6 +555,14 @@ function registerIpcHandlers() {
     return { success: true, data: app.getVersion() };
   });
 
+  ipcMain.handle('mobile:get-pairing-info', () => {
+    try {
+      return { success: true, data: getPairingInfo(db) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('app:open-wb-manager', () => {
     try {
       const possiblePaths = [
@@ -918,6 +927,12 @@ if (!gotTheLock) {
       debugLog('Initializing database at ' + dbPath);
       db = initDatabase(dbPath);
       debugLog('Database initialized successfully');
+      try {
+        startPairingServer(db);
+        debugLog('Mobile Pairing Server started');
+      } catch (err) {
+        debugLog('Failed to start Mobile Pairing Server: ' + err);
+      }
     } catch (err) {
       debugLog('Failed to initialize database: ' + err);
       console.error('Failed to initialize database:', err);

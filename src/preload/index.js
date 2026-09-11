@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('api', {
   getVersion: () => invokeApi('app:get-version'),
   selectFile: (opts) => ipcRenderer.invoke('app:select-file', opts),
   sendInvoiceWhatsApp: (voucherId, phone, message) => ipcRenderer.invoke('invoice:send-whatsapp', { voucherId, phone, message }),
+  getMobilePairingInfo: () => invokeApi('mobile:get-pairing-info'),
 
   // Native WhatsApp System
   wa: {
