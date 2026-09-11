@@ -83,7 +83,7 @@ export default function Layout({ children, onOpenShortcuts }) {
   const { dark }   = useTheme()
   const title      = pageTitles[location.pathname] || 'INTERIORS WORD'
   const pageIcon   = pageIcons[location.pathname] || '📋'
-  const [appVersion, setAppVersion] = useState('3.2.0')
+  const [appVersion, setAppVersion] = useState('3.3.0')
   const [company, setCompany]       = useState(null)
 
   useEffect(() => {
@@ -157,11 +157,10 @@ export default function Layout({ children, onOpenShortcuts }) {
               style={{ color: 'var(--text-muted)' }}
             >
               {[
+                { key: 'F2', label: 'Home' },
                 { key: 'F8', label: 'Sales' },
                 { key: 'F9', label: 'Purchase' },
-                { key: 'F10', label: 'WB Mgr' },
                 { key: 'Ctrl+K', label: 'Search' },
-                { key: 'F1', label: 'Help' },
               ].map((sc, i, arr) => (
                 <React.Fragment key={sc.key}>
                   <kbd
@@ -180,15 +179,17 @@ export default function Layout({ children, onOpenShortcuts }) {
 
               <button
                 onClick={onOpenShortcuts}
-                className="ml-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors"
+                className="ml-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors flex items-center gap-1 hover:bg-teal-50"
                 style={{
                   background: 'rgba(13,148,136,0.08)',
                   color: 'var(--text-accent)',
                   border: '1px solid rgba(13,148,136,0.2)',
                 }}
-                title="Show all shortcuts (F1)"
+                title="Show all keyboard shortcuts (F1 or Ctrl+/)"
               >
-                All shortcuts
+                <span>⌨️</span>
+                <span>Shortcuts</span>
+                <kbd className="font-mono text-[9px] text-red-500 font-bold">F1</kbd>
               </button>
             </div>
 

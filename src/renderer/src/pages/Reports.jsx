@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DataTable from '../components/DataTable'
 import MiniChart from '../components/MiniChart'
@@ -10,6 +10,7 @@ const api = window.api
 export default function Reports() {
   const toast    = useToast()
   const navigate = useNavigate()
+  const searchRef = useRef(null)
   const [tab,         setTab]         = useState('sales')
   const [data,        setData]        = useState([])
   const [loading,     setLoading]     = useState(false)
@@ -21,6 +22,19 @@ export default function Reports() {
     startDate: new Date(new Date().setDate(1)).toISOString().split('T')[0],
     endDate:   new Date().toISOString().split('T')[0]
   })
+
+  // Keyboard Shortcuts Listeners
+  useEffect(() => {
+    const onOpenFolder = () => api?.openPDFFolder?.()
+    const onFocusSearch = () => searchRef.current?.focus()
+
+    window.addEventListener('app:open-folder', onOpenFolder)
+    window.addEventListener('app:focus-search', onFocusSearch)
+    return () => {
+      window.removeEventListener('app:open-folder', onOpenFolder)
+      window.removeEventListener('app:focus-search', onFocusSearch)
+    }
+  }, [])
 
   /* ── Actions ───────────────────────────────────────────────────── */
   async function handleDelete(id) {
@@ -310,8 +324,9 @@ export default function Reports() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
+              ref={searchRef}
               type="text"
-              placeholder="Search invoice / customer..."
+              placeholder="Search invoice / customer (Ctrl+F)..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="bg-transparent border-none text-sm focus:outline-none flex-1"

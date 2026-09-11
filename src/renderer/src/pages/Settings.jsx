@@ -28,7 +28,7 @@ export default function Settings() {
   })
 
   // Auto-Updater state
-  const [appVersion, setAppVersion] = useState('3.2.0')
+  const [appVersion, setAppVersion] = useState('3.3.0')
   const [updateInfo, setUpdateInfo] = useState(null)
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
   const [updateStatusText, setUpdateStatusText] = useState('')
@@ -149,6 +149,13 @@ export default function Settings() {
       setSaving(false)
     }
   }
+
+  // Keyboard shortcut listener for Ctrl+S
+  useEffect(() => {
+    const onSave = () => handleSave()
+    window.addEventListener('app:save', onSave)
+    return () => window.removeEventListener('app:save', onSave)
+  }, [form])
 
   async function handleBackup() {
     if (!api?.backupDatabase) return

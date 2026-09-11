@@ -1,6 +1,6 @@
-﻿# INTERIORS WORD — Professional GST Billing & ERP Software
+# INTERIORS WORD — Professional GST Billing & ERP Software
 
-[![Version](https://img.shields.io/badge/version-3.2.0-blue.svg)](https://github.com/black-Ari/INTERIORS-WORD-SOFTWARE/releases/tag/v3.2.0)
+[![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)](https://github.com/black-Ari/INTERIORS-WORD-SOFTWARE/releases/tag/v3.3.0)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey.svg)]()
 [![Electron](https://img.shields.io/badge/Electron-35.7.5-cyan.svg)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19.1.0-61dafb.svg)](https://react.dev/)
@@ -68,13 +68,35 @@
 
 ## ⌨️ Keyboard Shortcuts
 
+INTERIORS WORD v3.3.0 introduces comprehensive ERP-grade keyboard shortcuts designed for high-speed, mouse-free billing and data entry:
+
+### 🧭 Navigation
 | Shortcut | Action |
 | :--- | :--- |
-| <kbd>Ctrl</kbd> + <kbd>N</kbd> | New Sales Invoice |
-| <kbd>Ctrl</kbd> + <kbd>P</kbd> | Print Current Invoice |
-| <kbd>Ctrl</kbd> + <kbd>S</kbd> | Save Current Voucher |
-| <kbd>Ctrl</kbd> + <kbd>D</kbd> | Toggle Dark / Light Mode |
-| <kbd>Ctrl</kbd> + <kbd>H</kbd> | Keyboard Shortcuts Cheat Sheet |
+| <kbd>F2</kbd> or <kbd>Ctrl</kbd> + <kbd>1</kbd> | 📊 Dashboard Overview |
+| <kbd>F8</kbd> or <kbd>Ctrl</kbd> + <kbd>2</kbd> | 🧾 Sales Invoice / Tax Invoice |
+| <kbd>F9</kbd> or <kbd>Ctrl</kbd> + <kbd>3</kbd> | 📥 Purchase Entry |
+| <kbd>F4</kbd> or <kbd>Ctrl</kbd> + <kbd>4</kbd> | 👥 Ledger Master (Customers & Suppliers) |
+| <kbd>F5</kbd> or <kbd>Ctrl</kbd> + <kbd>5</kbd> | 📦 Item Master (Stock & Products) |
+| <kbd>F6</kbd> or <kbd>Ctrl</kbd> + <kbd>6</kbd> | 📑 Reports & Registers |
+| <kbd>F10</kbd> or <kbd>Ctrl</kbd> + <kbd>7</kbd> | 💬 WhatsApp Business Manager |
+| <kbd>F12</kbd> or <kbd>Ctrl</kbd> + <kbd>8</kbd> | ⚙️ Company & Invoice Settings |
+
+### ⚡ Actions & Fast Entry
+| Shortcut | Action | Context |
+| :--- | :--- | :--- |
+| <kbd>Ctrl</kbd> + <kbd>S</kbd> | **Save / Record Voucher** | Sales, Purchase, Masters, Settings |
+| <kbd>Ctrl</kbd> + <kbd>P</kbd> | **Print / Export PDF** | Sales Invoice (Instant high-res PDF) |
+| <kbd>Ctrl</kbd> + <kbd>N</kbd> / <kbd>Alt</kbd> + <kbd>N</kbd> | **Add Row / Create Record** | Sales/Purchase: add row; Masters: new item/ledger |
+| <kbd>Alt</kbd> + <kbd>C</kbd> | **Quick Add Customer / Vendor** | Sales Invoice & Purchase Entry |
+| <kbd>Alt</kbd> + <kbd>I</kbd> | **Jump to Item Master** | Sales & Purchase |
+| <kbd>Alt</kbd> + <kbd>W</kbd> | **Open WhatsApp Engine** | Global / Sales Invoice |
+| <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | **Quick Send Message** | WhatsApp Manager |
+| <kbd>Alt</kbd> + <kbd>O</kbd> | **Open Invoices PDF Folder** | Reports |
+| <kbd>Ctrl</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>F</kbd> | **Focus Search Filter** | Reports & Search bars |
+| <kbd>Alt</kbd> + <kbd>Delete</kbd> | **Remove Active Row** | Sales & Purchase item tables |
+| <kbd>F1</kbd> / <kbd>Ctrl</kbd> + <kbd>/</kbd> / <kbd>?</kbd> | **Interactive Shortcut Cheat Sheet** | Global searchable modal dialog |
+| <kbd>Esc</kbd> | **Close Modal / Back** | Modals & Dialogs |
 
 ---
 
@@ -82,7 +104,7 @@
 
 ### For End Users
 Download the latest Windows setup installer from the [Releases](https://github.com/black-Ari/INTERIORS-WORD-SOFTWARE/releases/latest) page:
-- **`INTERIORS.WORD.Setup.3.2.0.exe`**
+- **`INTERIORS WORD Setup 3.3.0.exe`**
 
 Run the installer and follow the on-screen instructions. The application will launch with a desktop shortcut created automatically.
 
@@ -119,7 +141,7 @@ Run the installer and follow the on-screen instructions. The application will la
 ## 🏢 Company & Project Details
 
 - **Application**: INTERIORS WORD
-- **Version**: 3.2.0 (Professional Edition)
+- **Version**: 3.3.0 (Professional Edition)
 - **Repository**: [black-Ari/INTERIORS-WORD-SOFTWARE](https://github.com/black-Ari/INTERIORS-WORD-SOFTWARE)
 
 ---

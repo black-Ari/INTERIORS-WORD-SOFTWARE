@@ -65,17 +65,25 @@ function AppShell({ onOpenShortcuts }) {
 export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false)
 
-  // F1 or ? key opens shortcuts modal
+  // F1, Ctrl+/, ? or app:open-shortcuts opens shortcuts modal
   const handleKeyDown = useCallback((e) => {
-    if (e.key === 'F1') { e.preventDefault(); setShowShortcuts(true) }
+    if (e.key === 'F1' || ((e.ctrlKey || e.metaKey) && e.key === '/')) {
+      e.preventDefault()
+      setShowShortcuts(true)
+    }
     if (e.key === '?' && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) {
       setShowShortcuts(true)
     }
   }, [])
 
   useEffect(() => {
+    const handleOpen = () => setShowShortcuts(true)
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('app:open-shortcuts', handleOpen)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('app:open-shortcuts', handleOpen)
+    }
   }, [handleKeyDown])
 
   return (

@@ -126,6 +126,20 @@ export default function ItemMaster() {
     })
   }
 
+  // Keyboard Shortcuts Listeners
+  useEffect(() => {
+    const onNew = () => openCreate()
+    const onSave = () => {
+      if (showModal) handleSave()
+    }
+    window.addEventListener('app:new', onNew)
+    window.addEventListener('app:save', onSave)
+    return () => {
+      window.removeEventListener('app:new', onNew)
+      window.removeEventListener('app:save', onSave)
+    }
+  }, [showModal, form, editId])
+
   async function handleSave() {
     if (!form.name.trim()) { toast.warning('Please enter a product name'); return }
     try {

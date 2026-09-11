@@ -108,6 +108,20 @@ export default function LedgerMaster() {
     })
   }
 
+  // Keyboard Shortcuts Listeners
+  useEffect(() => {
+    const onNew = () => openCreate()
+    const onSave = () => {
+      if (showModal) handleSave()
+    }
+    window.addEventListener('app:new', onNew)
+    window.addEventListener('app:save', onSave)
+    return () => {
+      window.removeEventListener('app:new', onNew)
+      window.removeEventListener('app:save', onSave)
+    }
+  }, [showModal, form, editId])
+
   const tabs = [
     { key: 'all', label: 'All' },
     { key: 'customer', label: 'Customers' },

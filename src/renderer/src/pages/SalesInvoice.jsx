@@ -102,11 +102,6 @@ export default function SalesInvoice() {
 
   useEffect(() => {
     loadInitialData()
-    
-    // Listen for Ctrl+S
-    const handleSave = () => handleSaveInvoice()
-    window.addEventListener('app:save', handleSave)
-    return () => window.removeEventListener('app:save', handleSave)
   }, [loadInitialData])
 
   const { 
@@ -397,6 +392,41 @@ export default function SalesInvoice() {
       toast.error('Failed to create customer: ' + (e.message || ''))
     }
   }
+
+  // Keyboard Shortcuts Listeners
+  useEffect(() => {
+    const onSave = () => handleSaveInvoice()
+    const onPrint = () => handlePrintPdf()
+    const onNew = () => addRow()
+    const onAddContact = () => setShowCustomerModal(true)
+    const onWhatsApp = () => handleWhatsApp()
+
+    const onKeyDown = (e) => {
+      // Alt+Delete or Ctrl+Delete to remove last item row
+      if ((e.altKey || e.ctrlKey) && e.key === 'Delete') {
+        e.preventDefault()
+        if (items.length > 1) {
+          removeRow(items.length - 1)
+        }
+      }
+    }
+
+    window.addEventListener('app:save', onSave)
+    window.addEventListener('app:print', onPrint)
+    window.addEventListener('app:new', onNew)
+    window.addEventListener('app:add-contact', onAddContact)
+    window.addEventListener('app:whatsapp', onWhatsApp)
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      window.removeEventListener('app:save', onSave)
+      window.removeEventListener('app:print', onPrint)
+      window.removeEventListener('app:new', onNew)
+      window.removeEventListener('app:add-contact', onAddContact)
+      window.removeEventListener('app:whatsapp', onWhatsApp)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [items.length])
 
   return (
     <div className="max-w-6xl space-y-4 animate-page-enter">

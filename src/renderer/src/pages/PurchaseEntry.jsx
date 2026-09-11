@@ -95,11 +95,6 @@ export default function PurchaseEntry() {
 
   useEffect(() => {
     loadInitialData()
-    
-    // Listen for Ctrl+S
-    const handleSave = () => handleSaveEntry()
-    window.addEventListener('app:save', handleSave)
-    return () => window.removeEventListener('app:save', handleSave)
   }, [loadInitialData])
 
   const { 
@@ -278,6 +273,35 @@ export default function PurchaseEntry() {
       toast.error('Failed to create vendor: ' + (e.message || ''))
     }
   }
+
+  // Keyboard Shortcuts Listeners
+  useEffect(() => {
+    const onSave = () => handleSaveEntry()
+    const onNew = () => addRow()
+    const onAddContact = () => setShowVendorModal(true)
+
+    const onKeyDown = (e) => {
+      // Alt+Delete or Ctrl+Delete to remove last item row
+      if ((e.altKey || e.ctrlKey) && e.key === 'Delete') {
+        e.preventDefault()
+        if (items.length > 1) {
+          removeRow(items.length - 1)
+        }
+      }
+    }
+
+    window.addEventListener('app:save', onSave)
+    window.addEventListener('app:new', onNew)
+    window.addEventListener('app:add-contact', onAddContact)
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      window.removeEventListener('app:save', onSave)
+      window.removeEventListener('app:new', onNew)
+      window.removeEventListener('app:add-contact', onAddContact)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [items.length])
 
   return (
     <div className="max-w-6xl space-y-4 animate-page-enter">

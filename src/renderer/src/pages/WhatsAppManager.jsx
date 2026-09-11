@@ -904,7 +904,13 @@ export default function WhatsAppManager() {
                 rows={4}
                 value={directMessage}
                 onChange={(e) => setDirectMessage(e.target.value)}
-                placeholder="Type your message here..."
+                onKeyDown={(e) => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault()
+                    handleSendDirect()
+                  }
+                }}
+                placeholder="Type your message here... (Press Ctrl+Enter to send)"
                 className="w-full p-3 rounded-xl border bg-black/10 focus:outline-none focus:border-emerald-500 text-sm font-sans"
                 style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               />
