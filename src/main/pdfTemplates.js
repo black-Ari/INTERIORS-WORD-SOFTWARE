@@ -269,7 +269,8 @@ function buildTemplateData(voucherData, companyData) {
   const qrDataUri = generateUPIQR({
     upiId: companyData.upi_id,
     name: companyData.name,
-    amount: computed.netAmount
+    amount: computed.netAmount,
+    voucherNumber: voucherData.voucher_number
   });
 
   return {
@@ -286,964 +287,17 @@ function buildTemplateData(voucherData, companyData) {
   };
 }
 
-export function generateStandardTemplate(voucherData, companyData) {
-  const data = buildTemplateData(voucherData, companyData);
-  const c = data.computed;
-  const brandColor = companyData.theme_color || '#1e40af';
-  
-  const taxHeaders = data.isInterstate
-    ? '<th>IGST Rate</th><th>IGST Amt</th>'
-    : '<th>CGST Rate</th><th>CGST Amt</th><th>SGST Rate</th><th>SGST Amt</th>';
-
-  const taxRows = Object.entries(data.taxGroups)
-    .filter(([rate]) => Number(rate) > 0)
-    .map(([rate, g]) => {
-      const halfRate = (Number(rate) / 2).toFixed(1);
-      if (data.isInterstate) {
-        return `<tr><td class="right">${formatCurrency(g.taxableAmount)}</td><td class="center">${Number(rate)}%</td><td class="right">${formatCurrency(g.igst)}</td><td class="right">${formatCurrency(g.igst)}</td></tr>`;
-      }
-      return `<tr><td class="right">${formatCurrency(g.taxableAmount)}</td><td class="center">${halfRate}%</td><td class="right">${formatCurrency(g.cgst)}</td><td class="center">${halfRate}%</td><td class="right">${formatCurrency(g.sgst)}</td><td class="right">${formatCurrency(g.cgst + g.sgst)}</td></tr>`;
-    }).join('');
-
-  const taxSummaryHeaders = data.isInterstate
-    ? '<th>Taxable Amount</th>' + taxHeaders + '<th>Total Tax</th>'
-    : '<th>Taxable Amount</th>' + taxHeaders + '<th>Total Tax</th>';
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; color: #1e293b; padding: 20px 30px; }
-  .invoice-wrapper { border: 2px solid ${brandColor}; padding: 0; min-height: 1040px; display: flex; flex-direction: column; }
-  .header { background: linear-gradient(135deg, ${brandColor} 0%, ${brandColor}dd 100%); color: #fff; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; }
-  .header .company-name { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
-  .header .company-details { font-size: 10px; margin-top: 4px; line-height: 1.5; opacity: 0.9; }
-  .header .invoice-type { font-size: 16px; font-weight: 700; text-align: right; letter-spacing: 2px; border: 2px solid rgba(255,255,255,0.5); padding: 6px 16px; border-radius: 4px; }
-  .meta-section { display: flex; justify-content: space-between; border-bottom: 1px solid #cbd5e1; padding: 14px 24px; }
-  .meta-section .block { flex: 1; }
-  .meta-section .block:last-child { text-align: right; }
-  .meta-section .label { font-size: 9px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; margin-bottom: 2px; }
-  .meta-section .value { font-size: 12px; font-weight: 600; color: #0f172a; }
-  .meta-section .customer-name { font-size: 14px; }
-  .items-table { width: 100%; border-collapse: collapse; }
-  .items-table th { background: #f1f5f9; color: #334155; font-weight: 600; font-size: 10px; text-transform: uppercase; padding: 8px 10px; border-bottom: 2px solid ${brandColor}; border-top: 1px solid #cbd5e1; }
-  .items-table td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; }
-  .items-table tr:last-child td { border-bottom: 2px solid ${brandColor}; }
-  .center { text-align: center; } .right { text-align: right; }
-  .tax-section { padding: 10px 24px; border-bottom: 1px solid #cbd5e1; }
-  .tax-section h4 { font-size: 10px; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
-  .tax-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .tax-table th { background: #f8fafc; padding: 5px 8px; font-size: 9px; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; }
-  .tax-table td { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }
-  .totals-section { display: flex; justify-content: space-between; padding: 14px 24px; border-bottom: 1px solid #cbd5e1; }
-  .amount-words { flex: 1.5; font-size: 11px; font-style: italic; padding-right: 20px; }
-  .totals-box { flex: 1; }
-  .totals-box .row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 11px; }
-  .totals-box .row.grand { font-size: 14px; font-weight: 700; color: ${brandColor}; border-top: 2px solid ${brandColor}; margin-top: 4px; padding-top: 6px; }
-  .footer { display: flex; justify-content: space-between; padding: 14px 24px; font-size: 10px; color: #475569; background: #f8fafc; }
-  .footer .bank-details { flex: 1.5; }
-  .footer .auth-section { flex: 1; text-align: right; display: flex; flex-direction: column; justify-content: flex-end; }
-  .footer .auth-section .sig-line { border-top: 1px solid #94a3b8; padding-top: 4px; margin-top: 30px; font-size: 10px; }
-</style>
-</head>
-<body>
-  <div class="invoice-wrapper">
-    <div class="header">
-      <div style="display: flex; align-items: center; gap: 15px;">
-        ${companyData.logo ? `<img src="${companyData.logo}" alt="Logo" style="max-height: 60px; max-width: 150px; object-fit: contain; border-radius: 4px; background: white; padding: 4px;">` : ''}
-        <div>
-          <div class="company-name">${escapeHtml(companyData.name || 'INTERIORS WORD')}</div>
-          <div class="company-details">${escapeHtml(companyData.address || '')}<br>Phone: ${escapeHtml(companyData.phone || '')} &nbsp;|&nbsp; GSTIN: ${escapeHtml(companyData.gstin || '')}</div>
-        </div>
-      </div>
-      <div style="display: flex; align-items: center; gap: 16px;">
-        ${data.qrDataUri ? `<div style="background: white; padding: 4px; border-radius: 6px; text-align: center; border: 1px solid rgba(255,255,255,0.4);"><img src="${data.qrDataUri}" alt="UPI QR" style="width: 65px; height: 65px; display: block;"><div style="font-size: 7px; color: #1e293b; font-weight: bold; margin-top: 1px;">SCAN TO PAY</div></div>` : ''}
-        <div class="invoice-type">${data.voucherTypeLabel}</div>
-      </div>
-    </div>
-    <div class="meta-section">
-      <div class="block">
-        <div class="label">Bill To</div>
-        <div class="value customer-name">${escapeHtml(voucherData.ledger_name || '')}</div>
-        <div style="font-size:11px;color:#475569;margin-top:2px;">
-          ${escapeHtml(voucherData.ledger_address || '')}<br>
-          ${voucherData.ledger_gstin ? 'GSTIN: ' + escapeHtml(voucherData.ledger_gstin) : ''}
-          ${voucherData.ledger_phone ? '&nbsp;|&nbsp; Phone: ' + escapeHtml(voucherData.ledger_phone) : ''}
-        </div>
-      </div>
-      <div class="block">
-        <div class="label">Invoice Number</div>
-        <div class="value">${escapeHtml(voucherData.voucher_number || '')}</div>
-        <div style="margin-top:8px;"><div class="label">Date</div><div class="value">${escapeHtml(formatDate(voucherData.date))}</div></div>
-      </div>
-    </div>
-    <div style="flex: 1;">
-      <table class="items-table">
-        <thead><tr><th style="width:5%">S.No</th><th style="width:30%">Description</th><th style="width:10%">HSN</th><th style="width:8%">Qty</th><th style="width:7%">Unit</th><th style="width:12%">Rate (₹)</th><th style="width:8%">Disc</th><th style="width:14%">Amount (₹)</th></tr></thead>
-        <tbody>${data.itemRows}</tbody>
-      </table>
-    </div>
-    <div class="tax-section">
-      <h4>Tax Summary</h4>
-      <table class="tax-table">
-        <thead><tr>${taxSummaryHeaders}</tr></thead>
-        <tbody>${taxRows}</tbody>
-      </table>
-    </div>
-    <div class="totals-section">
-      <div class="amount-words"><b>Amount in Words:</b><br>${escapeHtml(data.amountInWords)}</div>
-      <div class="totals-box">
-        <div class="row"><span>Subtotal</span><span>₹ ${formatCurrency(c.subtotal)}</span></div>
-        ${!data.isInterstate ? `
-        <div class="row"><span>CGST</span><span>₹ ${formatCurrency(c.cgstTotal)}</span></div>
-        <div class="row"><span>SGST</span><span>₹ ${formatCurrency(c.sgstTotal)}</span></div>
-        ` : `<div class="row"><span>IGST</span><span>₹ ${formatCurrency(c.igstTotal)}</span></div>`}
-        ${c.discountAmount ? `<div class="row"><span>Discount</span><span>- ₹ ${formatCurrency(c.discountAmount)}</span></div>` : ''}
-        ${Math.abs(c.roundOff) >= 0.01 ? `<div class="row"><span>Round Off</span><span>₹ ${formatCurrency(c.roundOff)}</span></div>` : ''}
-        <div class="row grand"><span>Net Amount</span><span>₹ ${formatCurrency(c.netAmount)}</span></div>
-      </div>
-    </div>
-    <div class="footer">
-      <div class="bank-details" style="display: flex; align-items: flex-start; gap: 12px;">
-        <div>
-          <h4>Bank Details</h4>Bank: ${escapeHtml(companyData.bank_name || 'N/A')}<br>A/C No: ${escapeHtml(companyData.account_no || 'N/A')}<br>IFSC: ${escapeHtml(companyData.ifsc || 'N/A')}
-          ${companyData.upi_id ? `<br>UPI: ${escapeHtml(companyData.upi_id)}` : ''}
-        </div>
-      </div>
-      <div class="auth-section">
-        <div>For <strong>${escapeHtml(companyData.name || 'INTERIORS WORD')}</strong></div>
-        <div class="sig-line">Authorised Signatory</div>
-      </div>
-    </div>
-  </div>
-</body>
-</html>`;
-}
-
-export function generateModernTemplate(voucherData, companyData) {
-  const data = buildTemplateData(voucherData, companyData);
-  const brandColor = companyData.theme_color || '#0d9488';
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', sans-serif; font-size: 12px; color: #334155; padding: 30px; }
-  .invoice-wrapper { border-top: 8px solid ${brandColor}; background: #fff; min-height: 1020px; display: flex; flex-direction: column; padding-top: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-  .header { display: flex; justify-content: space-between; padding: 0 30px 20px; border-bottom: 2px solid #f1f5f9; }
-  .header-right { text-align: right; }
-  .company-name { font-size: 24px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
-  .invoice-title { font-size: 32px; font-weight: 300; color: ${brandColor}; letter-spacing: 2px; text-transform: uppercase; }
-  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; padding: 20px 30px; }
-  .meta-box { background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid ${brandColor}; }
-  .label { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 4px; }
-  .items-table { width: calc(100% - 60px); margin: 20px 30px; border-collapse: collapse; }
-  .items-table th { background: ${brandColor}; color: #fff; text-transform: uppercase; font-size: 10px; padding: 10px; text-align: left; }
-  .items-table th.center { text-align: center; } .items-table th.right { text-align: right; }
-  .items-table td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
-  .center { text-align: center; } .right { text-align: right; }
-  .totals-section { display: flex; justify-content: space-between; padding: 20px 30px; margin-top: auto; }
-  .bank-box { background: #f1f5f9; padding: 15px; border-radius: 8px; width: 60%; font-size: 11px; }
-  .totals-box { width: 35%; }
-  .totals-box .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; color: #475569; }
-  .totals-box .row.grand { font-size: 16px; font-weight: 800; color: #0f172a; border-top: 2px solid #cbd5e1; margin-top: 8px; padding-top: 8px; }
-  .footer { text-align: center; padding: 20px 30px; border-top: 1px solid #f1f5f9; color: #94a3b8; font-size: 10px; }
-</style>
-</head>
-<body>
-  <div class="invoice-wrapper">
-    <div class="header">
-      <div>
-        ${companyData.logo ? `<img src="${companyData.logo}" style="height: 50px; margin-bottom: 10px;">` : ''}
-        <div class="company-name">${escapeHtml(companyData.name)}</div>
-        <div style="color: #64748b;">${escapeHtml(companyData.address)}<br>GSTIN: ${escapeHtml(companyData.gstin)} | Ph: ${escapeHtml(companyData.phone)}</div>
-      </div>
-      <div style="display: flex; align-items: center; gap: 16px;">
-        ${data.qrDataUri ? `<div style="background: #ffffff; padding: 5px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.08);"><img src="${data.qrDataUri}" alt="UPI QR" style="width: 70px; height: 70px; display: block;"><div style="font-size: 8px; color: #1e293b; font-weight: 700; margin-top: 2px;">SCAN TO PAY</div></div>` : ''}
-        <div class="header-right">
-          <div class="invoice-title">${data.voucherTypeLabel}</div>
-          <div style="margin-top: 10px; font-size: 14px;"><strong>#${escapeHtml(voucherData.voucher_number)}</strong></div>
-          <div style="color: #64748b;">Date: ${escapeHtml(formatDate(voucherData.date))}</div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="meta-grid">
-      <div class="meta-box">
-        <div class="label">Billed To</div>
-        <div style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 4px;">${escapeHtml(voucherData.ledger_name)}</div>
-        <div style="color: #475569; font-size: 11px;">
-          ${escapeHtml(voucherData.ledger_address)}<br>
-          ${voucherData.ledger_gstin ? `GSTIN: ${escapeHtml(voucherData.ledger_gstin)}<br>` : ''}
-          ${voucherData.ledger_phone ? `Phone: ${escapeHtml(voucherData.ledger_phone)}` : ''}
-        </div>
-      </div>
-      <div class="meta-box" style="border-left-color: #3b82f6;">
-        <div class="label">Amount Due</div>
-        <div style="font-size: 24px; font-weight: 800; color: #0f172a;">₹ ${formatCurrency(voucherData.net_amount)}</div>
-        <div style="color: #64748b; font-size: 11px; margin-top: 4px; font-style: italic;">${escapeHtml(data.amountInWords)}</div>
-      </div>
-    </div>
-
-    <table class="items-table">
-      <thead>
-        <tr>
-          <th>Description</th>
-          <th class="center">HSN</th>
-          <th class="right">Qty</th>
-          <th class="right">Rate</th>
-          <th class="right">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${data.items.map(item => `
-          <tr>
-            <td><strong>${escapeHtml(item.description || item.item_name)}</strong></td>
-            <td class="center">${escapeHtml(item.hsn_code)}</td>
-            <td class="right">${formatQty(item.quantity)} ${escapeHtml(item.unit)}</td>
-            <td class="right">${formatCurrency(item.rate)}</td>
-            <td class="right"><strong>${formatCurrency(item.amount)}</strong></td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-
-    <div class="totals-section">
-      <div class="bank-box">
-        <div style="display: flex; align-items: flex-start; gap: 15px;">
-          <div style="flex: 1;">
-            <div class="label">Payment Details</div>
-            <strong>Bank:</strong> ${escapeHtml(companyData.bank_name)}<br>
-            <strong>A/C No:</strong> ${escapeHtml(companyData.account_no)}<br>
-            <strong>IFSC:</strong> ${escapeHtml(companyData.ifsc)}<br>
-            ${companyData.upi_id ? `<strong>UPI:</strong> ${escapeHtml(companyData.upi_id)}<br>` : ''}
-          </div>
-        </div>
-        <div style="margin-top: 30px; border-top: 1px solid #cbd5e1; width: 200px; padding-top: 4px; text-align: center;">Authorised Signatory</div>
-      </div>
-      
-      <div class="totals-box">
-        <div class="row"><span>Subtotal:</span><span>₹ ${formatCurrency(voucherData.subtotal)}</span></div>
-        ${!data.isInterstate ? `
-        <div class="row"><span>CGST:</span><span>₹ ${formatCurrency(voucherData.cgst_amount)}</span></div>
-        <div class="row"><span>SGST:</span><span>₹ ${formatCurrency(voucherData.sgst_amount)}</span></div>
-        ` : `<div class="row"><span>IGST:</span><span>₹ ${formatCurrency(voucherData.igst_amount)}</span></div>`}
-        ${voucherData.discount_amount ? `<div class="row text-red-500"><span>Discount:</span><span>- ₹ ${formatCurrency(voucherData.discount_amount)}</span></div>` : ''}
-        ${voucherData.round_off ? `<div class="row"><span>Round Off:</span><span>₹ ${formatCurrency(voucherData.round_off)}</span></div>` : ''}
-        <div class="row grand"><span>Total:</span><span>₹ ${formatCurrency(voucherData.net_amount)}</span></div>
-      </div>
-    </div>
-
-    <div class="footer">
-      Thank you for your business. | Goods once sold will not be taken back.
-    </div>
-  </div>
-</body>
-</html>`;
-}
-
-export function generateMinimalistTemplate(voucherData, companyData) {
-  const data = buildTemplateData(voucherData, companyData);
-  // Black and white, ultra minimal
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px; color: #000; padding: 40px; }
-  .invoice-wrapper { min-height: 1000px; display: flex; flex-direction: column; }
-  .title { font-size: 20px; font-weight: 300; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 40px; border-bottom: 1px solid #000; padding-bottom: 10px; }
-  .grid { display: flex; justify-content: space-between; margin-bottom: 40px; }
-  .col { width: 45%; }
-  .label { font-size: 8px; text-transform: uppercase; letter-spacing: 1px; color: #666; margin-bottom: 4px; }
-  .value { font-size: 12px; line-height: 1.6; }
-  .items-table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
-  .items-table th { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #000; padding: 8px 0; text-align: left; }
-  .items-table td { padding: 12px 0; border-bottom: 1px solid #eee; }
-  .right { text-align: right; }
-  .totals-grid { display: flex; justify-content: flex-end; }
-  .totals { width: 300px; }
-  .row { display: flex; justify-content: space-between; padding: 4px 0; }
-  .grand { font-size: 14px; font-weight: bold; border-top: 1px solid #000; margin-top: 8px; padding-top: 8px; }
-  .footer { margin-top: auto; border-top: 1px solid #eee; padding-top: 20px; display: flex; justify-content: space-between; font-size: 9px; color: #666; }
-</style>
-</head>
-<body>
-  <div class="invoice-wrapper">
-    <div class="title">${data.voucherTypeLabel}</div>
-    
-    <div class="grid">
-      <div class="col">
-        <div class="label">From</div>
-        <div class="value">
-          <strong>${escapeHtml(companyData.name)}</strong><br>
-          ${escapeHtml(companyData.address)}<br>
-          GSTIN: ${escapeHtml(companyData.gstin)}<br>
-          Ph: ${escapeHtml(companyData.phone)}
-        </div>
-      </div>
-      <div class="col right" style="display: flex; justify-content: flex-end; align-items: flex-start; gap: 15px;">
-        ${data.qrDataUri ? `<div style="background: #ffffff; padding: 4px; border-radius: 6px; text-align: center; border: 1px solid #e2e8f0;"><img src="${data.qrDataUri}" alt="UPI QR" style="width: 60px; height: 60px; display: block;"><div style="font-size: 7px; color: #0f172a; font-weight: 700; margin-top: 2px;">SCAN TO PAY</div></div>` : ''}
-        <div>
-          <div class="label">Invoice Details</div>
-          <div class="value">
-            <strong>No: ${escapeHtml(voucherData.voucher_number)}</strong><br>
-            Date: ${escapeHtml(formatDate(voucherData.date))}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid" style="margin-bottom: 60px;">
-      <div class="col">
-        <div class="label">Billed To</div>
-        <div class="value">
-          <strong>${escapeHtml(voucherData.ledger_name)}</strong><br>
-          ${escapeHtml(voucherData.ledger_address)}<br>
-          ${voucherData.ledger_gstin ? `GSTIN: ${escapeHtml(voucherData.ledger_gstin)}` : ''}
-        </div>
-      </div>
-    </div>
-
-    <table class="items-table">
-      <thead>
-        <tr>
-          <th style="width: 50%">Item</th>
-          <th class="right">Qty</th>
-          <th class="right">Rate</th>
-          <th class="right">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${data.items.map(item => `
-          <tr>
-            <td>${escapeHtml(item.description || item.item_name)}</td>
-            <td class="right">${formatQty(item.quantity)} ${escapeHtml(item.unit)}</td>
-            <td class="right">${formatCurrency(item.rate)}</td>
-            <td class="right">${formatCurrency(item.amount)}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-
-    <div class="totals-grid">
-      <div class="totals">
-        <div class="row"><span>Subtotal</span><span>${formatCurrency(voucherData.subtotal)}</span></div>
-        ${!data.isInterstate ? `
-        <div class="row"><span>CGST</span><span>${formatCurrency(voucherData.cgst_amount)}</span></div>
-        <div class="row"><span>SGST</span><span>${formatCurrency(voucherData.sgst_amount)}</span></div>
-        ` : `<div class="row"><span>IGST</span><span>${formatCurrency(voucherData.igst_amount)}</span></div>`}
-        ${voucherData.discount_amount ? `<div class="row"><span>Discount</span><span>-${formatCurrency(voucherData.discount_amount)}</span></div>` : ''}
-        <div class="row grand"><span>Total INR</span><span>${formatCurrency(voucherData.net_amount)}</span></div>
-      </div>
-    </div>
-
-    <div style="margin-top: 40px;">
-      <div class="label">Amount in Words</div>
-      <div style="font-size: 10px;">${escapeHtml(data.amountInWords)}</div>
-    </div>
-
-    <div class="footer">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <div>
-          <strong>Bank Details:</strong> ${escapeHtml(companyData.bank_name)} | A/C: ${escapeHtml(companyData.account_no)} | IFSC: ${escapeHtml(companyData.ifsc)}
-          ${companyData.upi_id ? `| UPI: ${escapeHtml(companyData.upi_id)}` : ''}
-        </div>
-      </div>
-      <div>Authorised Signatory</div>
-    </div>
-  </div>
-</body>
-</html>`;
-}
-
-export function generateExecutiveTemplate(voucherData, companyData) {
-  const data = buildTemplateData(voucherData, companyData);
-  const c = data.computed;
-  const brandColor = companyData.theme_color || '#2563eb';
-
-  const taxHeaders = data.isInterstate
-    ? '<th>IGST Rate</th><th>IGST Amt</th>'
-    : '<th>CGST Rate</th><th>CGST Amt</th><th>SGST Rate</th><th>SGST Amt</th>';
-
-  const taxRows = Object.entries(data.taxGroups)
-    .filter(([rate]) => Number(rate) > 0)
-    .map(([rate, g]) => {
-      const halfRate = (Number(rate) / 2).toFixed(1);
-      if (data.isInterstate) {
-        return `<tr><td class="right">${formatCurrency(g.taxableAmount)}</td><td class="center">${Number(rate)}%</td><td class="right">${formatCurrency(g.igst)}</td><td class="right">${formatCurrency(g.igst)}</td></tr>`;
-      }
-      return `<tr><td class="right">${formatCurrency(g.taxableAmount)}</td><td class="center">${halfRate}%</td><td class="right">${formatCurrency(g.cgst)}</td><td class="center">${halfRate}%</td><td class="right">${formatCurrency(g.sgst)}</td><td class="right">${formatCurrency(g.cgst + g.sgst)}</td></tr>`;
-    }).join('');
-
-  const taxSummaryHeaders = data.isInterstate
-    ? '<th>Taxable Amount</th>' + taxHeaders + '<th>Total Tax</th>'
-    : '<th>Taxable Amount</th>' + taxHeaders + '<th>Total Tax</th>';
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; color: #1e293b; padding: 25px 35px; }
-  .invoice-wrapper { border: 1px solid #cbd5e1; border-top: 10px solid ${brandColor}; padding: 0; min-height: 1040px; display: flex; flex-direction: column; background: #ffffff; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-  .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 24px 30px; border-bottom: 2px solid #f1f5f9; }
-  .logo-area { display: flex; align-items: center; gap: 16px; }
-  .company-name { font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: 0.5px; }
-  .company-details { font-size: 11px; color: #64748b; line-height: 1.5; margin-top: 4px; }
-  .voucher-badge { background: ${brandColor}; color: #ffffff; padding: 8px 20px; font-size: 16px; font-weight: 800; letter-spacing: 2px; border-radius: 6px; text-transform: uppercase; }
-  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 30px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
-  .meta-card { background: #ffffff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; border-left: 4px solid ${brandColor}; }
-  .label { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 4px; }
-  .value { font-size: 12px; font-weight: 600; color: #0f172a; }
-  .customer-name { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
-  .items-table { width: calc(100% - 60px); margin: 24px 30px; border-collapse: collapse; }
-  .items-table th { background: ${brandColor}; color: #ffffff; font-weight: 700; font-size: 10px; text-transform: uppercase; padding: 10px 12px; border: none; }
-  .items-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #334155; }
-  .items-table tr:nth-child(even) td { background: #f8fafc; }
-  .items-table tr:last-child td { border-bottom: 2px solid ${brandColor}; }
-  .center { text-align: center; } .right { text-align: right; }
-  .tax-section { padding: 10px 30px; border-bottom: 1px solid #e2e8f0; }
-  .tax-section h4 { font-size: 10px; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
-  .tax-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .tax-table th { background: #f8fafc; padding: 6px 10px; font-size: 9px; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; }
-  .tax-table td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
-  .totals-section { display: flex; justify-content: space-between; padding: 20px 30px; margin-top: auto; border-top: 1px solid #e2e8f0; }
-  .amount-words { flex: 1.4; font-size: 11px; font-style: italic; color: #475569; padding-right: 20px; }
-  .totals-box { flex: 1; background: #f8fafc; padding: 16px 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
-  .totals-box .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; color: #475569; }
-  .totals-box .row.grand { font-size: 16px; font-weight: 800; color: ${brandColor}; border-top: 2px solid #cbd5e1; margin-top: 8px; padding-top: 10px; }
-  .footer { display: flex; justify-content: space-between; align-items: center; padding: 18px 30px; background: #0f172a; color: #f8fafc; font-size: 11px; }
-  .footer strong { color: ${brandColor}; }
-</style>
-</head>
-<body>
-  <div class="invoice-wrapper">
-    <div class="top-bar">
-      <div class="logo-area">
-        ${companyData.logo ? `<img src="${companyData.logo}" alt="Logo" style="max-height: 70px; max-width: 170px; object-fit: contain; border-radius: 6px; background: #ffffff; padding: 4px;">` : ''}
-        <div>
-          <div class="company-name">${escapeHtml(companyData.name || 'INTERIORS WORD')}</div>
-          <div class="company-details">${escapeHtml(companyData.address || '')}<br>Phone: ${escapeHtml(companyData.phone || '')} &nbsp;|&nbsp; GSTIN: ${escapeHtml(companyData.gstin || '')}</div>
-        </div>
-      </div>
-      <div style="display: flex; align-items: center; gap: 16px;">
-        ${data.qrDataUri ? `<div style="background: #ffffff; padding: 4px; border-radius: 6px; text-align: center; border: 1px solid rgba(0,0,0,0.1);"><img src="${data.qrDataUri}" alt="UPI QR" style="width: 65px; height: 65px; display: block;"><div style="font-size: 7px; color: #0f172a; font-weight: 700; margin-top: 1px;">SCAN TO PAY</div></div>` : ''}
-        <div class="voucher-badge">${data.voucherTypeLabel}</div>
-      </div>
-    </div>
-
-    <div class="meta-grid">
-      <div class="meta-card">
-        <div class="label">Bill To (Customer)</div>
-        <div class="customer-name">${escapeHtml(voucherData.ledger_name || '')}</div>
-        ${voucherData.ledger_address ? `<div class="value" style="font-weight: 400; color: #475569;">${escapeHtml(voucherData.ledger_address)}</div>` : ''}
-        ${voucherData.ledger_phone ? `<div class="value" style="margin-top: 4px;">Phone: ${escapeHtml(voucherData.ledger_phone)}</div>` : ''}
-        ${voucherData.ledger_gstin ? `<div class="value">GSTIN: ${escapeHtml(voucherData.ledger_gstin)}</div>` : ''}
-      </div>
-      <div class="meta-card">
-        <div class="label">Invoice Details</div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-          <span>Invoice No:</span>
-          <strong>#${escapeHtml(voucherData.voucher_number)}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-          <span>Date:</span>
-          <strong>${formatDate(voucherData.date)}</strong>
-        </div>
-        ${voucherData.po_number ? `
-        <div style="display: flex; justify-content: space-between;">
-          <span>PO Number:</span>
-          <strong>${escapeHtml(voucherData.po_number)}</strong>
-        </div>` : ''}
-      </div>
-    </div>
-
-    <table class="items-table">
-      <thead>
-        <tr>
-          <th class="center" style="width: 5%;">#</th>
-          <th style="width: 35%;">Item Description</th>
-          <th class="center" style="width: 10%;">HSN/SAC</th>
-          <th class="right" style="width: 10%;">Qty</th>
-          <th class="center" style="width: 8%;">Unit</th>
-          <th class="right" style="width: 12%;">Rate</th>
-          <th class="right" style="width: 8%;">Dis%</th>
-          <th class="right" style="width: 12%;">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${data.itemRows}
-      </tbody>
-    </table>
-
-    ${taxRows ? `
-    <div class="tax-section">
-      <h4>Tax Breakdown</h4>
-      <table class="tax-table">
-        <thead><tr>${taxSummaryHeaders}</tr></thead>
-        <tbody>${taxRows}</tbody>
-      </table>
-    </div>` : ''}
-
-    <div class="totals-section">
-      <div class="amount-words">
-        <div class="label" style="margin-bottom: 6px;">Amount in Words</div>
-        <div>${escapeHtml(data.amountInWords)}</div>
-      </div>
-      <div class="totals-box">
-        <div class="row"><span>Subtotal:</span><span>${formatCurrency(c.subtotal)}</span></div>
-        ${!data.isInterstate ? `
-        <div class="row"><span>CGST:</span><span>${formatCurrency(c.cgstTotal)}</span></div>
-        <div class="row"><span>SGST:</span><span>${formatCurrency(c.sgstTotal)}</span></div>
-        ` : `<div class="row"><span>IGST:</span><span>${formatCurrency(c.igstTotal)}</span></div>`}
-        ${c.discountAmount ? `<div class="row" style="color: #16a34a;"><span>Discount:</span><span>-${formatCurrency(c.discountAmount)}</span></div>` : ''}
-        <div class="row grand"><span>Total INR:</span><span>₹ ${formatCurrency(c.netAmount)}</span></div>
-      </div>
-    </div>
-
-    <div class="footer">
-      <div style="display: flex; align-items: center; gap: 15px;">
-        <div>
-          <div style="font-size: 12px; font-weight: 700; margin-bottom: 3px;">Payment Information</div>
-          <div>Bank: ${escapeHtml(companyData.bank_name)} &nbsp;|&nbsp; A/C: ${escapeHtml(companyData.account_no)} &nbsp;|&nbsp; IFSC: ${escapeHtml(companyData.ifsc)}</div>
-          ${companyData.upi_id ? `<div style="margin-top: 2px;">UPI ID: <strong>${escapeHtml(companyData.upi_id)}</strong></div>` : ''}
-        </div>
-      </div>
-      <div style="text-align: right;">
-        <div style="margin-top: 25px; border-top: 1px solid #475569; padding-top: 6px; color: #cbd5e1;">Authorised Signatory</div>
-      </div>
-    </div>
-  </div>
-</body>
-</html>`;
-}
-
-// ============================================================
-// INTERIORS WORLD TEMPLATE — exact match to printed GST bill
-// ============================================================
-export function generateInteriorsTemplate(voucherData, companyData) {
-  const data = buildTemplateData(voucherData, companyData);
-  const c = data.computed;
-
-  /* ── Item rows: 8 columns matching the printed bill ─────────────────────
-     No | Particular | HSN/SAC | Quantity | Unit | Price/Unit(₹) | GST(₹) | Amount(₹)
-     GST column shows amount on top and (rate%) below                        */
-  const itemRows = c.items.map((item, idx) => {
-    const gstRate  = Number(item.gst_rate) || 0;
-    const taxable  = item.taxableAmount ?? item.amount ?? 0;
-    const gstAmt   = item.gstAmount ?? 0;
-    const lineTotal = item.lineTotal ?? (taxable + gstAmt);
-    return `<tr>
-      <td class="c">${idx + 1}</td>
-      <td>${escapeHtml(item.description || item.item_name || '')}</td>
-      <td class="c">${escapeHtml((item.hsn_code || '').trim() || '')}</td>
-      <td class="c">${formatQty(item.quantity)}</td>
-      <td class="c">${escapeHtml(item.unit || '')}</td>
-      <td class="r">&#8377; ${formatCurrency(item.rate)}</td>
-      <td class="c"><div>&#8377; ${formatCurrency(gstAmt)}</div><div class="gst-pct">(${gstRate}%)</div></td>
-      <td class="r"><strong>&#8377; ${formatCurrency(lineTotal)}</strong></td>
-    </tr>`;
-  }).join('');
-
-  /* ── Tax Summary table (HSN-wise) ─────────────────────────────────────── */
-  const taxSummaryRows = data.taxGroupsDetailed
-    .filter((g) => g.gstRate > 0 || g.taxableAmount > 0)
-    .map((g) => {
-      if (data.isInterstate) {
-        return `<tr>
-          <td class="c">${escapeHtml(g.hsn)}</td>
-          <td class="r">${formatCurrency(g.taxableAmount)}</td>
-          <td class="c" colspan="2">${g.gstRate}%</td>
-          <td class="r" colspan="2">${formatCurrency(g.igst)}</td>
-          <td class="r"><strong>${formatCurrency(g.totalTax)}</strong></td>
-        </tr>`;
-      }
-      const halfRate = (g.gstRate / 2).toFixed(1);
-      return `<tr>
-        <td class="c">${escapeHtml(g.hsn)}</td>
-        <td class="r">${formatCurrency(g.taxableAmount)}</td>
-        <td class="c">${halfRate}</td>
-        <td class="r">${formatCurrency(g.cgst)}</td>
-        <td class="c">${halfRate}</td>
-        <td class="r">${formatCurrency(g.sgst)}</td>
-        <td class="r"><strong>${formatCurrency(g.totalTax)}</strong></td>
-      </tr>`;
-    }).join('');
-
-  /* Tax summary footer totals */
-  const taxFooterCols = data.isInterstate
-    ? `<td class="c"><b>TOTAL</b></td>
-       <td class="r"><b>${formatCurrency(c.subtotal)}</b></td>
-       <td colspan="2"></td>
-       <td class="r" colspan="2"><b>${formatCurrency(c.igstTotal)}</b></td>
-       <td class="r"><b>${formatCurrency(c.totalTax)}</b></td>`
-    : `<td class="c"><b>TOTAL</b></td>
-       <td class="r"><b>${formatCurrency(c.subtotal)}</b></td>
-       <td></td>
-       <td class="r"><b>${formatCurrency(c.cgstTotal)}</b></td>
-       <td></td>
-       <td class="r"><b>${formatCurrency(c.sgstTotal)}</b></td>
-       <td class="r"><b>${formatCurrency(c.totalTax)}</b></td>`;
-
-  /* Tax summary header */
-  const taxHeadCols = data.isInterstate
-    ? `<th>HSN/SAC</th>
-       <th>Taxable Amount (&#8377;)</th>
-       <th colspan="2">IGST Rate (%)</th>
-       <th colspan="2">Amt (&#8377;)</th>
-       <th>Total Tax(&#8377;)</th>`
-    : `<th>HSN/SAC</th>
-       <th>Taxable Amount (&#8377;)</th>
-       <th>CGST<br>Rate (%)</th>
-       <th>Amt (&#8377;)</th>
-       <th>SGST<br>Rate (%)</th>
-       <th>Amt (&#8377;)</th>
-       <th>Total Tax(&#8377;)</th>`;
-
-  /* ── Computed values ───────────────────────────────────────────────────── */
-  const received    = Number(voucherData.received_amount) || 0;
-  const balance     = Math.round((c.netAmount - received) * 100) / 100;
-  const paymentMode = voucherData.payment_mode || 'Credit';
-  const stateCode   = companyData.state_code || '';
-  const stateName   = companyData.state_name || '';
-  const placeOfSupply = voucherData.place_of_supply
-    || (voucherData.ledger_state_code
-      ? `${voucherData.ledger_state_code}${voucherData.ledger_state_name ? '-' + voucherData.ledger_state_name : ''}`
-      : (stateCode ? `${stateCode}${stateName ? '-' + stateName : ''}` : ''));
-
-  const termsText = companyData.terms
-    || '*Thank you for doing business with us.*\n*Order once finalized will not be cancelled*\n*There will No Responsibility of Us in Labour Work *\n*Expenses Extra For Goods*';
-  const termsLines = termsText.split('\n').map((l) => `<div>${escapeHtml(l)}</div>`).join('');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<style>
-  @page { margin: 0; }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size:11px; color:#000; background:#fff; padding:10px 14px; }
-
-  /* ── Title ─────────────────────────────────────────── */
-  .inv-title {
-    text-align:center; font-size:22px; font-weight:bold;
-    margin-bottom:6px; letter-spacing:1px; color:#000;
-  }
-
-  /* ── Company header row ────────────────────────────── */
-  .co-box {
-    border:2px solid #333; display:flex; align-items:center;
-    gap:12px; padding:8px 12px;
-  }
-  .co-logo img { width:80px; height:80px; object-fit:contain; }
-  .co-logo-ph {
-    width:80px; height:80px;
-    background:linear-gradient(135deg,#1a3a6b,#c8102e);
-    border-radius:6px; display:flex; align-items:center;
-    justify-content:center; color:#fff; font-size:18px; font-weight:900;
-  }
-  .co-info { flex:1; }
-  .co-info .co-name {
-    font-size:20px; font-weight:900; color:#000;
-    letter-spacing:1px; margin-bottom:2px;
-  }
-  .co-info .co-det {
-    font-size:9.5px; color:#222; line-height:1.7;
-  }
-
-  /* ── Bill-To + Invoice Details side-by-side ─────────── */
-  .meta-row { display:flex; border:2px solid #333; border-top:none; }
-  .meta-col { flex:1; padding:6px 10px; }
-  .meta-col + .meta-col { border-left:1px solid #555; }
-  .meta-col .sec-hd {
-    font-size:10.5px; font-weight:bold; color:#000;
-    border-bottom:1px solid #999; margin-bottom:4px; padding-bottom:2px;
-  }
-  .cust-name { font-size:12px; font-weight:bold; margin-bottom:3px; }
-  .cust-sub  { font-size:10px; color:#333; margin-bottom:2px; }
-  .mrow { display:flex; gap:4px; font-size:10px; margin-bottom:2px; }
-  .mrow .ml { min-width:100px; color:#333; }
-  .mrow .mv { font-weight:600; }
-
-  /* ── Ship-To ───────────────────────────────────────── */
-  .ship-row {
-    border:2px solid #333; border-top:none;
-    padding:4px 10px; font-size:10px;
-  }
-
-  /* ── Items table ───────────────────────────────────── */
-  .it {
-    width:100%; border-collapse:collapse;
-    border-left:2px solid #333; border-right:2px solid #333;
-    border-bottom:2px solid #333;
-  }
-  .it th {
-    background:#e0e0e0; font-size:9.5px; font-weight:bold;
-    padding:5px 4px; border:1px solid #555; text-align:center;
-    color:#000;
-  }
-  .it td {
-    padding:4px 4px; border:1px solid #aaa;
-    font-size:10px; vertical-align:middle;
-  }
-  .it tfoot td {
-    font-weight:bold; background:#e0e0e0;
-    border:1px solid #555; font-size:10px;
-  }
-  .c { text-align:center; }
-  .r { text-align:right; }
-  .l { text-align:left; }
-  .gst-pct { font-size:8px; color:#555; margin-top:1px; }
-
-  /* ── Bottom split: Tax Summary left | Totals right ─── */
-  .bot {
-    display:flex;
-    border-left:2px solid #333; border-right:2px solid #333;
-    border-bottom:2px solid #333;
-    min-height:120px;
-  }
-  .tax-side { flex:1.7; border-right:1px solid #555; }
-  .tot-side { flex:1; display:flex; flex-direction:column; }
-
-  /* Tax summary sub-table */
-  .tax-hd {
-    font-size:10px; font-weight:bold; padding:4px 8px;
-    background:#e0e0e0; border-bottom:1px solid #555;
-  }
-  .tt { width:100%; border-collapse:collapse; }
-  .tt th {
-    font-size:8px; font-weight:bold; padding:4px 3px;
-    border:1px solid #aaa; background:#e0e0e0;
-    text-align:center; color:#000;
-  }
-  .tt td {
-    font-size:9px; padding:3px 3px;
-    border:1px solid #ccc;
-  }
-  .tt tfoot td {
-    font-weight:bold; background:#e0e0e0;
-    border:1px solid #555;
-  }
-
-  /* Totals column on the right */
-  .tot-row {
-    display:flex; justify-content:space-between;
-    padding:3px 10px; border-bottom:1px solid #ddd;
-    font-size:10px;
-  }
-  .tot-row.grand {
-    font-weight:bold; font-size:11px;
-    border-top:2px solid #333; background:#f5f5f5;
-    padding:5px 10px;
-  }
-  .words-box {
-    padding:4px 10px; font-size:9px;
-    border-bottom:1px solid #ccc; line-height:1.4;
-  }
-  .words-box b { font-style:normal; }
-  .rec-box { padding:4px 10px; border-bottom:1px solid #ccc; }
-  .rrow {
-    display:flex; justify-content:space-between;
-    font-size:10px; padding:2px 0;
-  }
-  .rrow.bold { font-weight:bold; }
-  .pay-box {
-    padding:4px 10px; font-size:10px; margin-top:auto;
-  }
-
-  /* ── Terms ─────────────────────────────────────────── */
-  .terms-box {
-    border-left:2px solid #333; border-right:2px solid #333;
-    border-bottom:2px solid #333;
-    padding:5px 10px; font-size:9px;
-  }
-  .terms-box .tlbl {
-    font-weight:bold; font-size:10px; margin-bottom:3px;
-  }
-
-  /* ── Footer: Bank + Signature ──────────────────────── */
-  .foot-row {
-    display:flex;
-    border-left:2px solid #333; border-right:2px solid #333;
-    border-bottom:2px solid #333;
-  }
-  .bank-col {
-    flex:1.5; padding:7px 10px; border-right:1px solid #555;
-    display:flex; gap:10px; align-items:flex-start;
-  }
-  .bank-txt { font-size:9.5px; line-height:1.65; }
-  .bank-txt b { font-size:10px; display:block; margin-bottom:2px; }
-  .sign-col {
-    flex:1; padding:7px 10px;
-    display:flex; flex-direction:column; justify-content:space-between;
-  }
-  .for-lbl { font-size:10px; font-weight:bold; }
-  .sig-line {
-    margin-top:30px; border-top:1px solid #999;
-    padding-top:4px; font-size:10px; text-align:center;
-  }
-</style>
-</head>
-<body>
-
-  <div class="inv-title">${escapeHtml(data.voucherTypeLabel)}</div>
-
-  <!-- ═══ Company Header ═══ -->
-  <div class="co-box">
-    <div class="co-logo">
-      ${companyData.logo
-        ? `<img src="${companyData.logo}" alt="Logo">`
-        : `<div class="co-logo-ph">${escapeHtml((companyData.name || 'IW').substring(0, 2).toUpperCase())}</div>`
-      }
-    </div>
-    <div class="co-info">
-      <div class="co-name">${escapeHtml(companyData.name || 'INTERIORS WORLD')}</div>
-      <div class="co-det">
-        ${companyData.address ? escapeHtml(companyData.address) + '<br>' : ''}
-        ${companyData.phone ? 'Phone: <strong>' + escapeHtml(companyData.phone) + '</strong>' : ''}
-        ${companyData.email ? ' &nbsp;&nbsp;Email: <strong>' + escapeHtml(companyData.email) + '</strong>' : ''}<br>
-        GSTIN: <strong>${escapeHtml(companyData.gstin || '—')}</strong>
-        ${stateCode ? ' &nbsp;&nbsp;State: <strong>' + escapeHtml(stateCode + (stateName ? '-' + stateName : '')) + '</strong>' : ''}
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ Bill To + Invoice Details ═══ -->
-  <div class="meta-row">
-    <div class="meta-col" style="flex:1.5;">
-      <div class="sec-hd">Bill To:</div>
-      <div class="cust-name">${escapeHtml(voucherData.ledger_name || '—')}</div>
-      ${voucherData.ledger_address ? `<div class="cust-sub">${escapeHtml(voucherData.ledger_address)}</div>` : ''}
-      ${voucherData.ledger_phone ? `<div class="mrow"><span class="ml">Contact No:</span><span class="mv">${escapeHtml(voucherData.ledger_phone)}</span></div>` : ''}
-      ${voucherData.ledger_gstin ? `<div class="mrow"><span class="ml">GSTIN Number:</span><span class="mv">${escapeHtml(voucherData.ledger_gstin)}</span></div>` : ''}
-      ${voucherData.ledger_state_code ? `<div class="mrow"><span class="ml">State:</span><span class="mv">${escapeHtml(voucherData.ledger_state_code + (voucherData.ledger_state_name ? '-' + voucherData.ledger_state_name : ''))}</span></div>` : ''}
-    </div>
-    <div class="meta-col" style="flex:1;">
-      <div class="sec-hd">Invoice Details:</div>
-      <div class="mrow"><span class="ml">No:</span><span class="mv">${escapeHtml(voucherData.voucher_number || '')}</span></div>
-      <div class="mrow"><span class="ml">Date:</span><span class="mv">${escapeHtml(formatDate(voucherData.date))}</span></div>
-      ${voucherData.po_date ? `<div class="mrow"><span class="ml">PO date:</span><span class="mv">${escapeHtml(formatDate(voucherData.po_date))}</span></div>` : ''}
-      ${voucherData.po_number ? `<div class="mrow"><span class="ml">PO number:</span><span class="mv">${escapeHtml(String(voucherData.po_number))}</span></div>` : ''}
-      ${placeOfSupply ? `<div class="mrow"><span class="ml">Place of Supply:</span><span class="mv">${escapeHtml(placeOfSupply)}</span></div>` : ''}
-    </div>
-  </div>
-
-  <!-- ═══ Ship To ═══ -->
-  ${(voucherData.ship_to || voucherData.ledger_address) ? `
-  <div class="ship-row">
-    <strong>Ship To:</strong> &nbsp;${escapeHtml(voucherData.ship_to || voucherData.ledger_address || '')}
-  </div>` : ''}
-
-  <!-- ═══ Items Table (8 columns — matches printed bill) ═══ -->
-  <table class="it">
-    <thead>
-      <tr>
-        <th style="width:4%">No</th>
-        <th style="width:28%;text-align:left;">Particular</th>
-        <th style="width:9%">HSN/SAC</th>
-        <th style="width:8%">Quantity</th>
-        <th style="width:6%">Unit</th>
-        <th style="width:14%">Price/ Unit(&#8377;)</th>
-        <th style="width:14%">GST(&#8377;)</th>
-        <th style="width:14%">Amount(&#8377;)</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${itemRows || `<tr><td colspan="8" class="c" style="padding:14px;color:#888;">No items</td></tr>`}
-    </tbody>
-    <tfoot>
-      <tr>
-        <td class="c" colspan="2"><strong>Total</strong></td>
-        <td></td>
-        <td class="c">${formatQty(c.sumQty)}</td>
-        <td colspan="2"></td>
-        <td class="r">&#8377; ${formatCurrency(c.totalTax)}</td>
-        <td class="r">&#8377; ${formatCurrency(c.grandTotal)}</td>
-      </tr>
-    </tfoot>
-  </table>
-
-  <!-- ═══ Tax Summary (left) + Totals (right) ═══ -->
-  <div class="bot">
-    <div class="tax-side">
-      <div class="tax-hd">Tax Summary:</div>
-      <table class="tt">
-        <thead><tr>${taxHeadCols}</tr></thead>
-        <tbody>
-          ${taxSummaryRows || `<tr><td colspan="7" class="c" style="padding:8px;color:#888;">No taxable items</td></tr>`}
-        </tbody>
-        <tfoot><tr>${taxFooterCols}</tr></tfoot>
-      </table>
-      <div style="padding:4px 8px; font-size:10px; border-top:1px solid #ccc;">
-        <strong>Payment Mode:</strong> ${escapeHtml(paymentMode)}
-      </div>
-    </div>
-    <div class="tot-side">
-      <div class="tot-row"><span>Sub Total</span><span>&#8377; ${formatCurrency(c.subtotal)}</span></div>
-      <div class="tot-row"><span>Total</span><span>&#8377; ${formatCurrency(c.grandTotal)}</span></div>
-      ${c.discountAmount > 0 ? `<div class="tot-row"><span>Less: Discount</span><span>- &#8377; ${formatCurrency(c.discountAmount)}</span></div>` : ''}
-      ${Math.abs(c.roundOff) >= 0.01 ? `<div class="tot-row"><span>Round Off</span><span>&#8377; ${formatCurrency(c.roundOff)}</span></div>` : ''}
-      <div class="tot-row grand"><span>Net Payable</span><span>&#8377; ${formatCurrency(c.netAmount)}</span></div>
-      <div class="words-box">
-        <b>Invoice Amount In Words :</b><br>
-        ${escapeHtml(data.amountInWords)}
-      </div>
-      <div class="rec-box">
-        <div class="rrow"><span>Received</span><span>&#8377; ${formatCurrency(received)}</span></div>
-        <div class="rrow bold"><span>Balance</span><span>&#8377; ${formatCurrency(balance)}</span></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ Terms & Conditions ═══ -->
-  <div class="terms-box">
-    <div class="tlbl">Terms And Conditions:</div>
-    ${termsLines}
-  </div>
-
-  <!-- ═══ Bank Details + Authorised Signatory ═══ -->
-  <div class="foot-row">
-    <div class="bank-col">
-      ${data.qrDataUri ? `<div style="flex-shrink:0;"><img src="${data.qrDataUri}" style="width:68px;height:68px;" alt="UPI QR"><div style="font-size:7.5px;text-align:center;margin-top:2px;color:#555;">Scan & Pay</div></div>` : ''}
-      <div class="bank-txt">
-        <b>Bank Details:</b>
-        ${companyData.bank_name  ? 'Name: <strong>' + escapeHtml(companyData.bank_name) + '</strong><br>' : ''}
-        ${companyData.account_no ? 'Account No.: <strong>' + escapeHtml(companyData.account_no) + '</strong><br>' : ''}
-        ${companyData.ifsc       ? 'IFSC code: <strong>' + escapeHtml(companyData.ifsc) + '</strong><br>' : ''}
-        ${companyData.upi_id     ? 'UPI: <strong>' + escapeHtml(companyData.upi_id) + '</strong><br>' : ''}
-        ${companyData.name       ? "Account Holder's Name: <strong>" + escapeHtml(companyData.name) + '</strong>' : ''}
-      </div>
-    </div>
-    <div class="sign-col">
-      <div class="for-lbl">For ${escapeHtml(companyData.name || 'INTERIORS WORLD')}:</div>
-      <div class="sig-line">Authorized Signatory</div>
-    </div>
-  </div>
-
-</body>
-</html>`;
-}
-
 // ---------------------------------------------------------------------------
-// 🏆 Premier Professional GST Tax Invoice (Rule 46 & HSN Breakdown)
+// 🏆 Professional GST Tax Invoice Templates Engine
 // ---------------------------------------------------------------------------
 
-export function generateProfessionalGSTTemplate(voucherData, companyData) {
+function renderGSTInvoiceHTML(voucherData, companyData, style) {
   const data = buildTemplateData(voucherData, companyData);
   const c = data.computed;
-  const brandColor = companyData.theme_color || '#1e3a8a';
-
   const isInterstate = data.isInterstate;
   const stateCode = companyData.state_code || '';
   const stateName = companyData.state_name || '';
 
-  // Derive PAN from GSTIN if 15 chars (chars 3..12)
   let panNumber = '';
   if (companyData.gstin && companyData.gstin.length >= 15) {
     panNumber = companyData.gstin.substring(2, 12);
@@ -1254,79 +308,72 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
       ? `${voucherData.ledger_state_code}${voucherData.ledger_state_name ? ' - ' + voucherData.ledger_state_name : ''}`
       : (stateCode ? `${stateCode}${stateName ? ' - ' + stateName : ''}` : ''));
 
-  /* ── 1. Line Item Rows ── */
   const itemRows = c.items.map((item, idx) => {
     const qty = Number(item.quantity) || 0;
     const rate = Number(item.rate) || 0;
     const discPct = Number(item.discount_percent) || 0;
-    const gstRate = Number(item.gst_rate) || 0;
-    const taxable = item.taxableAmount ?? (qty * rate * (1 - discPct / 100));
-    const cgst = item.cgst_amount || 0;
-    const sgst = item.sgst_amount || 0;
-    const igst = item.igst_amount || 0;
-    const lineTotal = item.lineTotal ?? (taxable + (isInterstate ? igst : cgst + sgst));
-    const halfRate = (gstRate / 2).toFixed(1);
+    const taxable = item.taxableAmount ?? item.amount ?? 0;
+    const lineTotal = item.lineTotal ?? 0;
 
     if (isInterstate) {
-      return `<tr>
+      return `
+        <tr>
+          <td class="c">${idx + 1}</td>
+          <td class="l desc-cell">
+            <strong>${escapeHtml(item.description || item.item_name || '')}</strong>
+          </td>
+          <td class="c">${escapeHtml(item.hsn_code || '?')}</td>
+          <td class="c">${formatQty(qty)}</td>
+          <td class="c">${escapeHtml(item.unit || '')}</td>
+          <td class="r">${formatCurrency(rate)}</td>
+          <td class="c">${discPct > 0 ? discPct + '%' : '?'}</td>
+          <td class="r">${formatCurrency(taxable)}</td>
+          <td class="r">${formatCurrency(item.igst || 0)}</td>
+          <td class="r font-bold">${formatCurrency(lineTotal)}</td>
+        </tr>
+      `;
+    }
+
+    return `
+      <tr>
         <td class="c">${idx + 1}</td>
-        <td class="l">
-          <div class="item-name">${escapeHtml(item.description || item.item_name || '')}</div>
+        <td class="l desc-cell">
+          <strong>${escapeHtml(item.description || item.item_name || '')}</strong>
         </td>
-        <td class="c font-mono">${escapeHtml((item.hsn_code || '').trim() || '—')}</td>
+        <td class="c">${escapeHtml(item.hsn_code || '?')}</td>
         <td class="c">${formatQty(qty)}</td>
         <td class="c">${escapeHtml(item.unit || '')}</td>
         <td class="r">${formatCurrency(rate)}</td>
-        <td class="c">${discPct > 0 ? discPct + '%' : '—'}</td>
-        <td class="r font-bold">${formatCurrency(taxable)}</td>
-        <td class="r">
-          <div>${formatCurrency(igst)}</div>
-          <div class="tax-rate-sub">(${gstRate}%)</div>
-        </td>
+        <td class="c">${discPct > 0 ? discPct + '%' : '?'}</td>
+        <td class="r">${formatCurrency(taxable)}</td>
+        <td class="r">${formatCurrency(item.cgst || 0)}</td>
+        <td class="r">${formatCurrency(item.sgst || 0)}</td>
         <td class="r font-bold">${formatCurrency(lineTotal)}</td>
-      </tr>`;
-    }
-
-    return `<tr>
-      <td class="c">${idx + 1}</td>
-      <td class="l">
-        <div class="item-name">${escapeHtml(item.description || item.item_name || '')}</div>
-      </td>
-      <td class="c font-mono">${escapeHtml((item.hsn_code || '').trim() || '—')}</td>
-      <td class="c">${formatQty(qty)}</td>
-      <td class="c">${escapeHtml(item.unit || '')}</td>
-      <td class="r">${formatCurrency(rate)}</td>
-      <td class="c">${discPct > 0 ? discPct + '%' : '—'}</td>
-      <td class="r font-bold">${formatCurrency(taxable)}</td>
-      <td class="r">
-        <div>${formatCurrency(cgst)}</div>
-        <div class="tax-rate-sub">(${halfRate}%)</div>
-      </td>
-      <td class="r">
-        <div>${formatCurrency(sgst)}</div>
-        <div class="tax-rate-sub">(${halfRate}%)</div>
-      </td>
-      <td class="r font-bold">${formatCurrency(lineTotal)}</td>
-    </tr>`;
+      </tr>
+    `;
   }).join('');
 
-  /* ── 2. HSN Summary Rows ── */
-  const hsnRows = data.taxGroupsDetailed
-    .filter((g) => g.gstRate > 0 || g.taxableAmount > 0)
-    .map((g) => {
+  const hsnRows = Object.entries(c.taxGroups)
+    .filter(([key]) => key !== 'undefined')
+    .map(([key, g]) => {
+      const parts = key.split('_');
+      const hsn = parts[0] || '?';
+      const rate = Number(parts[1]) || 0;
+      const halfRate = (rate / 2).toFixed(1);
+
       if (isInterstate) {
         return `<tr>
-          <td class="c font-mono"><strong>${escapeHtml(g.hsn)}</strong></td>
-          <td class="r font-bold">${formatCurrency(g.taxableAmount)}</td>
-          <td class="c">${g.gstRate}%</td>
+          <td class="c font-bold">${escapeHtml(hsn)}</td>
+          <td class="r">${formatCurrency(g.taxableAmount)}</td>
+          <td class="c">${rate}%</td>
           <td class="r">${formatCurrency(g.igst)}</td>
           <td class="r font-bold">${formatCurrency(g.totalTax)}</td>
         </tr>`;
       }
-      const halfRate = (g.gstRate / 2).toFixed(1);
+
       return `<tr>
-        <td class="c font-mono"><strong>${escapeHtml(g.hsn)}</strong></td>
-        <td class="r font-bold">${formatCurrency(g.taxableAmount)}</td>
+        <td class="c font-bold">${escapeHtml(hsn)}</td>
+        <td class="r">${formatCurrency(g.taxableAmount)}</td>
         <td class="c">${halfRate}%</td>
         <td class="r">${formatCurrency(g.cgst)}</td>
         <td class="c">${halfRate}%</td>
@@ -1355,7 +402,7 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
 <style>
   @page {
     size: A4 portrait;
-    margin: 8mm 8mm 8mm 8mm;
+    margin: ${style.pageMargin || '6mm 6mm 6mm 6mm'};
   }
   * {
     margin: 0;
@@ -1365,67 +412,66 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
     print-color-adjust: exact;
   }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-    font-size: 9.5pt;
-    color: #0f172a;
+    font-family: ${style.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif'};
+    font-size: ${style.fontSize || '9pt'};
+    color: ${style.textColor || '#0f172a'};
     background: #ffffff;
     line-height: 1.35;
   }
-
-  /* ── Master Box ── */
   .invoice-box {
     width: 100%;
-    border: 1.5px solid #1e293b;
+    max-width: 100%;
+    border: ${style.outerBorder || '1.5px solid #0f172a'};
     background: #ffffff;
   }
 
-  /* ── Top Header Banner ── */
+  /* Top Banner */
   .top-banner {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 7px 16px;
-    background: #f8fafc;
-    border-bottom: 1.5px solid #1e293b;
+    padding: ${style.bannerPadding || '7px 16px'};
+    background: ${style.bannerBg || '#f8fafc'};
+    border-bottom: ${style.headerBorderBottom || '1.5px solid #0f172a'};
   }
   .doc-title {
     font-size: 13.5pt;
     font-weight: 900;
     letter-spacing: 2px;
-    color: #0f172a;
+    color: ${style.headerTitleColor || '#0f172a'};
     text-transform: uppercase;
   }
   .copy-badge {
     font-size: 8pt;
     font-weight: 700;
     letter-spacing: 0.8px;
-    color: #1e293b;
-    border: 1px solid #64748b;
-    border-radius: 4px;
+    color: ${style.copyBadgeColor || '#1e293b'};
+    border: ${style.copyBadgeBorder || '1px solid #64748b'};
+    border-radius: ${style.borderRadius || '4px'};
     padding: 3px 10px;
-    background: #ffffff;
+    background: ${style.copyBadgeBg || '#ffffff'};
     text-transform: uppercase;
   }
 
-  /* ── Supplier Header Row ── */
+  /* Supplier Row */
   .supplier-row {
     display: flex;
     align-items: center;
-    padding: 10px 14px;
-    border-bottom: 1.5px solid #1e293b;
+    padding: 9px 14px;
+    border-bottom: ${style.sectionBorderBottom || '1.5px solid #0f172a'};
     background: #ffffff;
     gap: 16px;
   }
   .supplier-logo img {
-    max-height: 60px;
-    max-width: 140px;
+    max-height: 55px;
+    max-width: 130px;
     object-fit: contain;
   }
   .supplier-logo-placeholder {
-    width: 60px;
-    height: 60px;
-    border-radius: 6px;
-    background: linear-gradient(135deg, ${brandColor}, #0284c7);
+    width: 55px;
+    height: 55px;
+    border-radius: ${style.borderRadius || '4px'};
+    background: ${style.primaryColor || '#0f172a'};
     color: #ffffff;
     display: flex;
     align-items: center;
@@ -1433,178 +479,151 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
     font-size: 16pt;
     font-weight: 900;
   }
-  .supplier-info {
-    flex: 1;
-  }
+  .supplier-info { flex: 1; }
   .company-title {
-    font-size: 14pt;
+    font-size: 13.5pt;
     font-weight: 900;
-    color: #0f172a;
+    color: ${style.brandTitleColor || '#0f172a'};
     letter-spacing: 0.5px;
     text-transform: uppercase;
   }
   .company-addr {
-    font-size: 8.5pt;
+    font-size: 8.2pt;
     color: #334155;
-    margin-top: 2px;
-    line-height: 1.35;
+    margin-top: 1px;
+    line-height: 1.3;
   }
   .company-badges {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
-    margin-top: 4px;
-    font-size: 8.5pt;
+    margin-top: 3px;
+    font-size: 8.2pt;
   }
-  .badge-item strong {
-    color: #0f172a;
-  }
+  .badge-item strong { color: #0f172a; }
 
-  /* ── 2-Column Party & Invoice Details Grid ── */
+  /* Metadata Grid */
   .meta-grid {
     display: flex;
-    border-bottom: 1.5px solid #1e293b;
+    border-bottom: ${style.sectionBorderBottom || '1.5px solid #0f172a'};
   }
-  .meta-col {
-    padding: 8px 12px;
-  }
+  .meta-col { padding: 7px 12px; }
   .meta-col.buyer {
     flex: 1.25;
-    border-right: 1.5px solid #1e293b;
+    border-right: ${style.sectionBorderBottom || '1.5px solid #0f172a'};
   }
-  .meta-col.invoice-det {
-    flex: 1;
-  }
+  .meta-col.invoice-det { flex: 1; }
   .sec-header {
     font-size: 8pt;
     font-weight: 800;
     text-transform: uppercase;
-    color: ${brandColor};
+    color: ${style.accentColor || '#0f172a'};
     letter-spacing: 0.5px;
     border-bottom: 1px solid #e2e8f0;
-    padding-bottom: 3px;
-    margin-bottom: 5px;
+    padding-bottom: 2px;
+    margin-bottom: 4px;
   }
   .buyer-name {
-    font-size: 11pt;
+    font-size: 10.5pt;
     font-weight: 800;
     color: #0f172a;
-    margin-bottom: 2px;
+    margin-bottom: 1px;
   }
   .buyer-addr {
-    font-size: 8.5pt;
+    font-size: 8.2pt;
     color: #334155;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
     line-height: 1.3;
   }
   .detail-row {
     display: flex;
-    font-size: 8.5pt;
-    margin-bottom: 2.5px;
+    font-size: 8.2pt;
+    margin-bottom: 2px;
     align-items: baseline;
   }
   .detail-row .lbl {
-    width: 115px;
+    width: 110px;
     color: #475569;
-    flex-shrink: 0;
+    font-weight: 600;
   }
   .detail-row .val {
-    font-weight: 600;
+    flex: 1;
     color: #0f172a;
-  }
-  .detail-row .val.highlight {
-    font-size: 10pt;
-    color: ${brandColor};
-    font-weight: 800;
+    font-weight: 700;
   }
 
-  /* ── Items Table ── */
-  .table-container {
-    width: 100%;
-    border-bottom: 1.5px solid #1e293b;
-  }
+  /* Items Table */
+  .table-container { border-bottom: ${style.sectionBorderBottom || '1.5px solid #0f172a'}; }
   .items-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 8.5pt;
+    font-size: 8.2pt;
   }
   .items-table thead th {
-    background: #f1f5f9;
-    color: #0f172a;
+    background: ${style.tableHeaderBg || '#f8fafc'};
+    color: ${style.tableHeaderColor || '#1e293b'};
     font-weight: 800;
     font-size: 7.5pt;
     text-transform: uppercase;
-    padding: 6px 4px;
-    border: 1px solid #94a3b8;
-    border-top: none;
+    letter-spacing: 0.4px;
+    padding: 5px 6px;
+    border: 1px solid #cbd5e1;
     text-align: center;
-    vertical-align: middle;
-    letter-spacing: 0.3px;
   }
   .items-table tbody td {
-    padding: 5px 4px;
-    border: 1px solid #cbd5e1;
-    vertical-align: middle;
+    padding: 4px 6px;
+    border: 1px solid #e2e8f0;
     color: #1e293b;
+    vertical-align: middle;
   }
   .items-table tbody tr:nth-child(even) {
-    background: #fafafa;
+    background: ${style.zebraBg || '#ffffff'};
   }
   .items-table tfoot td {
-    background: #f8fafc;
-    border: 1px solid #94a3b8;
-    padding: 6px 4px;
+    background: ${style.tableFooterBg || '#f1f5f9'};
     font-weight: 800;
-    font-size: 8.5pt;
-  }
-  .item-name {
-    font-weight: 700;
+    border: 1px solid #94a3b8;
+    padding: 5px 6px;
     color: #0f172a;
   }
-  .tax-rate-sub {
-    font-size: 7pt;
-    color: #64748b;
-    font-weight: 600;
-  }
-
-  /* ── Alignment & Utility ── */
+  .desc-cell { font-size: 8.2pt; }
   .c { text-align: center; }
   .r { text-align: right; }
   .l { text-align: left; }
   .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
   .font-bold { font-weight: 800; color: #0f172a; }
 
-  /* ── HSN Summary Section ── */
+  /* HSN Summary Section */
   .hsn-box {
-    padding: 6px 10px;
+    padding: 5px 10px;
     background: #ffffff;
-    border-bottom: 1.5px solid #1e293b;
+    border-bottom: ${style.sectionBorderBottom || '1.5px solid #0f172a'};
   }
   .hsn-title {
-    font-size: 8pt;
+    font-size: 7.8pt;
     font-weight: 800;
     text-transform: uppercase;
-    color: ${brandColor};
+    color: ${style.accentColor || '#0f172a'};
     letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
   }
   .hsn-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 8pt;
+    font-size: 7.8pt;
   }
   .hsn-table thead th {
-    background: #f8fafc;
-    color: #334155;
+    background: ${style.hsnHeaderBg || '#f8fafc'};
+    color: ${style.hsnHeaderColor || '#334155'};
     font-weight: 800;
     font-size: 7pt;
     text-transform: uppercase;
-    padding: 4px 5px;
+    padding: 3px 5px;
     border: 1px solid #cbd5e1;
     text-align: center;
   }
   .hsn-table tbody td {
-    padding: 4px 5px;
+    padding: 3px 5px;
     border: 1px solid #e2e8f0;
     color: #1e293b;
   }
@@ -1612,25 +631,23 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
     background: #f1f5f9;
     font-weight: 800;
     border: 1px solid #94a3b8;
-    padding: 4px 5px;
+    padding: 3px 5px;
   }
   .tax-words-bar {
     font-size: 7.5pt;
-    margin-top: 4px;
+    margin-top: 3px;
     color: #475569;
   }
-  .tax-words-bar strong {
-    color: #0f172a;
-  }
+  .tax-words-bar strong { color: #0f172a; }
 
-  /* ── Bottom Section: Bank / QR & Totals / Signatory ── */
+  /* Bottom Section: Bank / QR & Totals */
   .bot-grid {
     display: flex;
     background: #ffffff;
   }
   .bot-left {
     flex: 1.35;
-    border-right: 1.5px solid #1e293b;
+    border-right: ${style.sectionBorderBottom || '1.5px solid #0f172a'};
     display: flex;
     flex-direction: column;
   }
@@ -1654,16 +671,17 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
     flex-shrink: 0;
   }
   .qr-frame img {
-    width: 70px;
-    height: 70px;
+    width: 105px;
+    height: 105px;
     display: block;
     border: 1px solid #cbd5e1;
-    border-radius: 4px;
+    padding: 3px;
+    background: #ffffff;
   }
   .qr-caption {
     font-size: 6.5pt;
     font-weight: 800;
-    color: ${brandColor};
+    color: ${style.accentColor || '#0f172a'};
     margin-top: 2px;
     text-transform: uppercase;
   }
@@ -1675,7 +693,7 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
     font-size: 8pt;
     font-weight: 800;
     text-transform: uppercase;
-    color: ${brandColor};
+    color: ${style.accentColor || '#0f172a'};
     margin-bottom: 2px;
   }
 
@@ -1698,47 +716,49 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
     line-height: 1.35;
   }
 
-  /* Right Side: Totals Summary */
+  /* Totals Table */
   .totals-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 8.5pt;
+    font-size: 8.2pt;
   }
   .totals-table td {
-    padding: 3.5px 10px;
+    padding: 4px 10px;
     border-bottom: 1px solid #e2e8f0;
   }
-  .totals-table td:last-child {
-    text-align: right;
+  .totals-table td:nth-child(1) {
+    color: #334155;
     font-weight: 600;
   }
-  .totals-table tr.grand-row td {
-    background: #f1f5f9;
-    border-top: 1.5px solid #1e293b;
-    border-bottom: 1.5px solid #1e293b;
-    padding: 6px 10px;
-    font-size: 11pt;
-    font-weight: 900;
-    color: ${brandColor};
-  }
-  .words-container {
-    padding: 6px 10px;
-    font-size: 8pt;
-    border-bottom: 1px solid #cbd5e1;
-    background: #f8fafc;
-    line-height: 1.3;
-  }
-  .words-container strong {
+  .totals-table td:nth-child(2) {
+    text-align: right;
+    font-weight: 800;
     color: #0f172a;
   }
+  .totals-table tr.grand-row td {
+    background: ${style.grandRowBg || '#0f172a'};
+    color: ${style.grandRowColor || '#ffffff'} !important;
+    font-size: 9.5pt;
+    font-weight: 900;
+    border-top: 1px solid #0f172a;
+    border-bottom: none;
+    padding: 6px 10px;
+  }
 
-  /* Signatory Area */
+  .words-container {
+    padding: 5px 10px;
+    font-size: 7.5pt;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fafafa;
+    line-height: 1.3;
+    color: #334155;
+  }
+  .words-container strong { color: #0f172a; }
+
+  /* Sign Area */
   .sign-area {
-    padding: 8px 12px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    min-height: 75px;
+    padding: 8px 10px;
+    margin-top: auto;
     text-align: right;
   }
   .sign-for {
@@ -1747,19 +767,22 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
     color: #0f172a;
   }
   .sign-placeholder {
-    font-size: 8pt;
+    font-size: 7.8pt;
     color: #334155;
     border-top: 1px dashed #94a3b8;
-    padding-top: 3px;
-    margin-top: 35px;
+    padding-top: 2px;
+    margin-top: 32px;
     font-weight: 700;
+    display: inline-block;
+    min-width: 140px;
+    text-align: center;
   }
 
-  /* ── Bottom Disclaimer ── */
+  /* Footer */
   .inv-footer {
-    border-top: 1px solid #1e293b;
+    border-top: ${style.sectionBorderBottom || '1.5px solid #0f172a'};
     text-align: center;
-    padding: 4px;
+    padding: 3px;
     font-size: 7pt;
     color: #64748b;
     background: #f8fafc;
@@ -1788,7 +811,7 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
       <div class="company-title">${escapeHtml(companyData.name || 'INTERIORS WORD')}</div>
       <div class="company-addr">${escapeHtml(companyData.address || 'Interior Furnishing, Blinds, Curtains, Wallpapers & Wooden Flooring')}</div>
       <div class="company-badges">
-        <span class="badge-item">GSTIN: <strong>${escapeHtml(companyData.gstin || '—')}</strong></span>
+        <span class="badge-item">GSTIN: <strong>${escapeHtml(companyData.gstin || '?')}</strong></span>
         ${stateCode ? `<span class="badge-item">State: <strong>${escapeHtml(stateName ? stateName + ' (' + stateCode + ')' : stateCode)}</strong></span>` : ''}
         ${panNumber ? `<span class="badge-item">PAN: <strong>${escapeHtml(panNumber)}</strong></span>` : ''}
         ${companyData.phone ? `<span class="badge-item">Mobile: <strong>${escapeHtml(companyData.phone)}</strong></span>` : ''}
@@ -1800,46 +823,44 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
   <!-- 3. Details of Receiver & Tax Invoice -->
   <div class="meta-grid">
     <div class="meta-col buyer">
-      <div class="sec-header">Details of Receiver | Billed to:</div>
-      <div class="buyer-name">${escapeHtml(voucherData.ledger_name || 'Counter Sale / Cash')}</div>
-      ${voucherData.ledger_address ? `<div class="buyer-addr">${escapeHtml(voucherData.ledger_address)}</div>` : ''}
-      <div class="detail-row">
-        <span class="lbl">Mobile / Phone:</span>
-        <span class="val">${escapeHtml(voucherData.ledger_phone || '—')}</span>
-      </div>
+      <div class="sec-header">Details of Receiver (Billed To)</div>
+      <div class="buyer-name">${escapeHtml(voucherData.ledger_name || 'Cash Customer')}</div>
+      <div class="buyer-addr">${escapeHtml(voucherData.ledger_address || '?')}</div>
       <div class="detail-row">
         <span class="lbl">GSTIN / UIN:</span>
-        <span class="val font-mono">${escapeHtml(voucherData.ledger_gstin || 'Unregistered Consumer')}</span>
+        <span class="val font-mono">${escapeHtml(voucherData.ledger_gstin || 'Unregistered')}</span>
       </div>
       <div class="detail-row">
-        <span class="lbl">State & Code:</span>
-        <span class="val">${escapeHtml((voucherData.ledger_state_name || stateName || '') + (voucherData.ledger_state_code ? ' (' + voucherData.ledger_state_code + ')' : ''))}</span>
+        <span class="lbl">State Name & Code:</span>
+        <span class="val">${escapeHtml(voucherData.ledger_state_name || '?')} (${escapeHtml(voucherData.ledger_state_code || '?')})</span>
       </div>
-      ${voucherData.ship_to ? `
-        <div style="margin-top:4px;border-top:1px dashed #cbd5e1;padding-top:4px;">
-          <div class="sec-header" style="margin-bottom:2px;">Shipped to / Consignee:</div>
-          <div class="buyer-addr">${escapeHtml(voucherData.ship_to)}</div>
-        </div>
-      ` : ''}
+      <div class="detail-row">
+        <span class="lbl">Contact Phone:</span>
+        <span class="val">${escapeHtml(voucherData.ledger_phone || '?')}</span>
+      </div>
+      <div class="detail-row">
+        <span class="lbl">Reverse Charge:</span>
+        <span class="val">No</span>
+      </div>
     </div>
 
     <div class="meta-col invoice-det">
-      <div class="sec-header">Tax Invoice Details:</div>
+      <div class="sec-header">Invoice Particulars</div>
       <div class="detail-row">
-        <span class="lbl">Invoice No:</span>
-        <span class="val highlight">${escapeHtml(voucherData.voucher_number || '')}</span>
+        <span class="lbl">Invoice Number:</span>
+        <span class="val font-bold">${escapeHtml(voucherData.voucher_number || '?')}</span>
       </div>
       <div class="detail-row">
         <span class="lbl">Invoice Date:</span>
         <span class="val">${escapeHtml(formatDate(voucherData.date))}</span>
       </div>
       <div class="detail-row">
-        <span class="lbl">Place of Supply:</span>
-        <span class="val">${escapeHtml(placeOfSupply || '—')}</span>
+        <span class="lbl">Due Date:</span>
+        <span class="val">${escapeHtml(formatDate(voucherData.due_date || voucherData.date))}</span>
       </div>
       <div class="detail-row">
-        <span class="lbl">Reverse Charge:</span>
-        <span class="val">No</span>
+        <span class="lbl">Place of Supply:</span>
+        <span class="val font-bold">${escapeHtml(placeOfSupply || '?')}</span>
       </div>
       ${voucherData.po_number ? `
         <div class="detail-row">
@@ -1871,23 +892,23 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
             <th style="width:9%;">HSN/SAC</th>
             <th style="width:7%;">Qty</th>
             <th style="width:5%;">Unit</th>
-            <th style="width:9%;">Rate (₹)</th>
+            <th style="width:9%;">Rate (?)</th>
             <th style="width:5%;">Disc</th>
-            <th style="width:11.5%;">Taxable (₹)</th>
-            <th style="width:10%;">IGST (₹)</th>
-            <th style="width:12%;">Total (₹)</th>
+            <th style="width:11.5%;">Taxable (?)</th>
+            <th style="width:10%;">IGST (?)</th>
+            <th style="width:12%;">Total (?)</th>
           ` : `
             <th style="width:3.5%;">#</th>
             <th style="width:26%;text-align:left;">Description of Goods / Services</th>
             <th style="width:9%;">HSN/SAC</th>
             <th style="width:6.5%;">Qty</th>
             <th style="width:5%;">Unit</th>
-            <th style="width:9%;">Rate (₹)</th>
+            <th style="width:9%;">Rate (?)</th>
             <th style="width:5%;">Disc</th>
-            <th style="width:11%;">Taxable (₹)</th>
-            <th style="width:8.5%;">CGST (₹)</th>
-            <th style="width:8.5%;">SGST (₹)</th>
-            <th style="width:10%;">Total (₹)</th>
+            <th style="width:11%;">Taxable (?)</th>
+            <th style="width:8.5%;">CGST (?)</th>
+            <th style="width:8.5%;">SGST (?)</th>
+            <th style="width:10%;">Total (?)</th>
           `}
         </tr>
       </thead>
@@ -1899,14 +920,14 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
           <td colspan="3" class="c font-bold">TOTAL</td>
           <td class="c font-bold">${formatQty(c.sumQty)}</td>
           <td colspan="3"></td>
-          <td class="r font-bold">₹ ${formatCurrency(c.sumTaxable)}</td>
+          <td class="r font-bold">? ${formatCurrency(c.sumTaxable)}</td>
           ${isInterstate ? `
-            <td class="r font-bold">₹ ${formatCurrency(c.igstTotal)}</td>
+            <td class="r font-bold">? ${formatCurrency(c.igstTotal)}</td>
           ` : `
-            <td class="r font-bold">₹ ${formatCurrency(c.cgstTotal)}</td>
-            <td class="r font-bold">₹ ${formatCurrency(c.sgstTotal)}</td>
+            <td class="r font-bold">? ${formatCurrency(c.cgstTotal)}</td>
+            <td class="r font-bold">? ${formatCurrency(c.sgstTotal)}</td>
           `}
-          <td class="r font-bold">₹ ${formatCurrency(c.grandTotal)}</td>
+          <td class="r font-bold">? ${formatCurrency(c.grandTotal)}</td>
         </tr>
       </tfoot>
     </table>
@@ -1919,17 +940,17 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
       <thead>
         <tr>
           <th style="width:14%;">HSN/SAC Code</th>
-          <th style="width:18%;">Taxable Amount (₹)</th>
+          <th style="width:18%;">Taxable Amount (?)</th>
           ${isInterstate ? `
             <th style="width:14%;">IGST Rate (%)</th>
-            <th style="width:18%;">IGST Amount (₹)</th>
+            <th style="width:18%;">IGST Amount (?)</th>
           ` : `
             <th style="width:11%;">CGST Rate</th>
-            <th style="width:15%;">CGST Amount (₹)</th>
+            <th style="width:15%;">CGST Amount (?)</th>
             <th style="width:11%;">SGST Rate</th>
-            <th style="width:15%;">SGST Amount (₹)</th>
+            <th style="width:15%;">SGST Amount (?)</th>
           `}
-          <th style="width:18%;">Total Tax Amount (₹)</th>
+          <th style="width:18%;">Total Tax Amount (?)</th>
         </tr>
       </thead>
       <tbody>
@@ -1938,17 +959,17 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
       <tfoot>
         <tr>
           <td class="c font-bold">TOTAL</td>
-          <td class="r font-bold">₹ ${formatCurrency(c.sumTaxable)}</td>
+          <td class="r font-bold">? ${formatCurrency(c.sumTaxable)}</td>
           ${isInterstate ? `
             <td></td>
-            <td class="r font-bold">₹ ${formatCurrency(c.igstTotal)}</td>
+            <td class="r font-bold">? ${formatCurrency(c.igstTotal)}</td>
           ` : `
             <td></td>
-            <td class="r font-bold">₹ ${formatCurrency(c.cgstTotal)}</td>
+            <td class="r font-bold">? ${formatCurrency(c.cgstTotal)}</td>
             <td></td>
-            <td class="r font-bold">₹ ${formatCurrency(c.sgstTotal)}</td>
+            <td class="r font-bold">? ${formatCurrency(c.sgstTotal)}</td>
           `}
-          <td class="r font-bold">₹ ${formatCurrency(c.totalTax)}</td>
+          <td class="r font-bold">? ${formatCurrency(c.totalTax)}</td>
         </tr>
       </tfoot>
     </table>
@@ -1964,14 +985,14 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
         ${data.qrDataUri ? `
           <div class="qr-frame">
             <img src="${data.qrDataUri}" alt="UPI QR">
-            <div class="qr-caption">Scan to Pay UPI</div>
+            <div class="qr-caption">Scan to Pay UPI (? ${formatCurrency(c.netAmount)})</div>
           </div>
         ` : ''}
         <div class="bank-details">
           <div class="b-hd">Bank Account Details (NEFT / RTGS / IMPS)</div>
-          <div>Bank Name: <strong>${escapeHtml(companyData.bank_name || '—')}</strong></div>
-          <div>Account Number: <strong>${escapeHtml(companyData.account_no || '—')}</strong></div>
-          <div>IFSC Code: <strong class="font-mono">${escapeHtml(companyData.ifsc || '—')}</strong></div>
+          <div>Bank Name: <strong>${escapeHtml(companyData.bank_name || '?')}</strong></div>
+          <div>Account Number: <strong>${escapeHtml(companyData.account_no || '?')}</strong></div>
+          <div>IFSC Code: <strong class="font-mono">${escapeHtml(companyData.ifsc || '?')}</strong></div>
           <div>Account Name: <strong>${escapeHtml(companyData.name || 'INTERIORS WORD')}</strong></div>
           ${companyData.upi_id ? `<div>UPI ID: <strong class="font-mono">${escapeHtml(companyData.upi_id)}</strong></div>` : ''}
         </div>
@@ -1990,38 +1011,38 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
         <tbody>
           <tr>
             <td>Total Taxable Value</td>
-            <td>₹ ${formatCurrency(c.sumTaxable)}</td>
+            <td>? ${formatCurrency(c.sumTaxable)}</td>
           </tr>
           ${isInterstate ? `
             <tr>
               <td>Integrated Tax (IGST)</td>
-              <td>+ ₹ ${formatCurrency(c.igstTotal)}</td>
+              <td>+ ? ${formatCurrency(c.igstTotal)}</td>
             </tr>
           ` : `
             <tr>
               <td>Central Tax (CGST)</td>
-              <td>+ ₹ ${formatCurrency(c.cgstTotal)}</td>
+              <td>+ ? ${formatCurrency(c.cgstTotal)}</td>
             </tr>
             <tr>
               <td>State Tax (SGST)</td>
-              <td>+ ₹ ${formatCurrency(c.sgstTotal)}</td>
+              <td>+ ? ${formatCurrency(c.sgstTotal)}</td>
             </tr>
           `}
           ${c.discountAmount > 0 ? `
             <tr>
               <td>Discount (Less)</td>
-              <td>- ₹ ${formatCurrency(c.discountAmount)}</td>
+              <td>- ? ${formatCurrency(c.discountAmount)}</td>
             </tr>
           ` : ''}
           ${Math.abs(c.roundOff) >= 0.01 ? `
             <tr>
               <td>Round Off (+/-)</td>
-              <td>${c.roundOff >= 0 ? '+' : ''} ₹ ${formatCurrency(c.roundOff)}</td>
+              <td>${c.roundOff >= 0 ? '+' : ''} ? ${formatCurrency(c.roundOff)}</td>
             </tr>
           ` : ''}
           <tr class="grand-row">
             <td>Grand Total (Net Amount)</td>
-            <td>₹ ${formatCurrency(c.netAmount)}</td>
+            <td>? ${formatCurrency(c.netAmount)}</td>
           </tr>
         </tbody>
       </table>
@@ -2033,8 +1054,8 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
 
       ${(received > 0 || balance > 0) ? `
         <div style="padding:4px 10px;font-size:8pt;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;">
-          <span>Received: <strong>₹ ${formatCurrency(received)}</strong></span>
-          <span>Balance Due: <strong style="color:#dc2626;">₹ ${formatCurrency(balance)}</strong></span>
+          <span>Received: <strong>? ${formatCurrency(received)}</strong></span>
+          <span>Balance Due: <strong style="color:#dc2626;">? ${formatCurrency(balance)}</strong></span>
         </div>
       ` : ''}
 
@@ -2056,3 +1077,119 @@ export function generateProfessionalGSTTemplate(voucherData, companyData) {
 </html>`;
 }
 
+// 1. ?? Professional Classic (Rule 46 & HSN Breakdown - Default)
+export function generateProfessionalClassicTemplate(voucherData, companyData) {
+  return renderGSTInvoiceHTML(voucherData, companyData, {
+    outerBorder: '1.5px solid #0f172a',
+    headerBorderBottom: '1.5px solid #0f172a',
+    sectionBorderBottom: '1.5px solid #0f172a',
+    bannerBg: '#f8fafc',
+    headerTitleColor: '#0f172a',
+    accentColor: '#0f172a',
+    brandTitleColor: '#0f172a',
+    primaryColor: '#0f172a',
+    tableHeaderBg: '#f8fafc',
+    tableHeaderColor: '#1e293b',
+    tableFooterBg: '#f1f5f9',
+    grandRowBg: '#0f172a',
+    grandRowColor: '#ffffff',
+    copyBadgeBorder: '1px solid #64748b',
+    copyBadgeColor: '#1e293b',
+    copyBadgeBg: '#ffffff'
+  });
+}
+
+// Alias for backwards compatibility
+export const generateProfessionalGSTTemplate = generateProfessionalClassicTemplate;
+
+// 2. ?? Professional Modern (Emerald & Slate Accent)
+export function generateProfessionalModernTemplate(voucherData, companyData) {
+  return renderGSTInvoiceHTML(voucherData, companyData, {
+    outerBorder: '1.5px solid #059669',
+    headerBorderBottom: '2px solid #059669',
+    sectionBorderBottom: '1px solid #a7f3d0',
+    bannerBg: '#ecfdf5',
+    headerTitleColor: '#065f46',
+    accentColor: '#059669',
+    brandTitleColor: '#065f46',
+    primaryColor: '#059669',
+    tableHeaderBg: '#d1fae5',
+    tableHeaderColor: '#065f46',
+    tableFooterBg: '#ecfdf5',
+    zebraBg: '#f0fdf4',
+    grandRowBg: '#059669',
+    grandRowColor: '#ffffff',
+    copyBadgeBorder: '1px solid #059669',
+    copyBadgeColor: '#065f46',
+    copyBadgeBg: '#ffffff',
+    borderRadius: '6px'
+  });
+}
+
+// 3. ?? Professional Corporate (Royal Blue & Charcoal)
+export function generateProfessionalCorporateTemplate(voucherData, companyData) {
+  return renderGSTInvoiceHTML(voucherData, companyData, {
+    outerBorder: '1.5px solid #1e3a8a',
+    headerBorderBottom: '2px solid #1e3a8a',
+    sectionBorderBottom: '1.5px solid #1e3a8a',
+    bannerBg: '#1e40af',
+    headerTitleColor: '#ffffff',
+    accentColor: '#1e40af',
+    brandTitleColor: '#1e3a8a',
+    primaryColor: '#1e40af',
+    tableHeaderBg: '#1e40af',
+    tableHeaderColor: '#ffffff',
+    tableFooterBg: '#eff6ff',
+    zebraBg: '#f8fafc',
+    grandRowBg: '#1e3a8a',
+    grandRowColor: '#ffffff',
+    copyBadgeBorder: '1px solid #93c5fd',
+    copyBadgeColor: '#ffffff',
+    copyBadgeBg: '#1e3a8a'
+  });
+}
+
+// 4. ?? Professional Tally Style (High Density Compact)
+export function generateProfessionalTallyTemplate(voucherData, companyData) {
+  return renderGSTInvoiceHTML(voucherData, companyData, {
+    outerBorder: '2px solid #000000',
+    headerBorderBottom: '2px solid #000000',
+    sectionBorderBottom: '1px solid #000000',
+    bannerBg: '#ffffff',
+    headerTitleColor: '#000000',
+    accentColor: '#000000',
+    brandTitleColor: '#000000',
+    primaryColor: '#000000',
+    tableHeaderBg: '#e2e8f0',
+    tableHeaderColor: '#000000',
+    tableFooterBg: '#cbd5e1',
+    grandRowBg: '#000000',
+    grandRowColor: '#ffffff',
+    copyBadgeBorder: '1.5px solid #000000',
+    copyBadgeColor: '#000000',
+    copyBadgeBg: '#ffffff',
+    fontSize: '8.5pt'
+  });
+}
+
+// 5. ??? Professional Minimalist (B&W Laser Print Ready)
+export function generateProfessionalMinimalistTemplate(voucherData, companyData) {
+  return renderGSTInvoiceHTML(voucherData, companyData, {
+    outerBorder: '1px solid #000000',
+    headerBorderBottom: '1px solid #000000',
+    sectionBorderBottom: '1px solid #000000',
+    bannerBg: '#ffffff',
+    headerTitleColor: '#000000',
+    accentColor: '#000000',
+    brandTitleColor: '#000000',
+    primaryColor: '#000000',
+    tableHeaderBg: '#ffffff',
+    tableHeaderColor: '#000000',
+    tableFooterBg: '#ffffff',
+    grandRowBg: '#000000',
+    grandRowColor: '#ffffff',
+    copyBadgeBorder: '1px solid #000000',
+    copyBadgeColor: '#000000',
+    copyBadgeBg: '#ffffff'
+  });
+}

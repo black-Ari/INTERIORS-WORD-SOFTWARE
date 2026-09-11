@@ -5,24 +5,23 @@ import path from 'path';
 import fs from 'fs';
 
 import {
+  generateProfessionalClassicTemplate,
+  generateProfessionalModernTemplate,
+  generateProfessionalCorporateTemplate,
+  generateProfessionalTallyTemplate,
+  generateProfessionalMinimalistTemplate,
   generateProfessionalGSTTemplate,
-  generateInteriorsTemplate,
-  generateStandardTemplate,
-  generateModernTemplate,
-  generateMinimalistTemplate,
-  generateExecutiveTemplate,
   numberToIndianWords
 } from './pdfTemplates.js';
 
 function generateInvoiceHTML(voucherData, companyData) {
   const template = companyData.invoice_template || 'professional';
-  if (template === 'modern') return generateModernTemplate(voucherData, companyData);
-  if (template === 'minimalist') return generateMinimalistTemplate(voucherData, companyData);
-  if (template === 'executive') return generateExecutiveTemplate(voucherData, companyData);
-  if (template === 'interiors') return generateInteriorsTemplate(voucherData, companyData);
-  if (template === 'standard') return generateProfessionalGSTTemplate(voucherData, companyData);
-  // Default to the comprehensive Rule 46 professional GST template
-  return generateProfessionalGSTTemplate(voucherData, companyData);
+  if (template === 'professional_modern') return generateProfessionalModernTemplate(voucherData, companyData);
+  if (template === 'professional_corporate') return generateProfessionalCorporateTemplate(voucherData, companyData);
+  if (template === 'professional_tally') return generateProfessionalTallyTemplate(voucherData, companyData);
+  if (template === 'professional_minimalist') return generateProfessionalMinimalistTemplate(voucherData, companyData);
+  // Default to Classic Rule 46 Professional GST template
+  return generateProfessionalClassicTemplate(voucherData, companyData);
 }
 
 // ---------------------------------------------------------------------------

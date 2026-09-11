@@ -21,6 +21,8 @@ export default function Settings() {
     bank_name: '',
     account_no: '',
     ifsc: '',
+    upi_id: '',
+    theme_color: '#2563eb',
     logo: '',
     invoice_template: 'professional'
   })
@@ -378,12 +380,11 @@ export default function Settings() {
                   onChange={e => updateForm('invoice_template', e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 >
-                  <option value="professional">🏆 Professional GST Tax Invoice (Rule 46 &amp; HSN Summary - Recommended)</option>
-                  <option value="interiors">🏢 Interiors World (Custom Layout)</option>
-                  <option value="standard">📄 Standard Template (Familiar Layout)</option>
-                  <option value="modern">✨ Modern Template (Sleek &amp; Colorful)</option>
-                  <option value="minimalist">📝 Minimalist Template (Clean B&amp;W)</option>
-                  <option value="executive">👑 Executive Brand Template (Matches Logo Colors)</option>
+                  <option value="professional">🏆 Professional Classic (Rule 46 &amp; HSN Breakdown - Default)</option>
+                  <option value="professional_modern">💎 Professional Modern (Emerald &amp; Slate Accent)</option>
+                  <option value="professional_corporate">🏢 Professional Corporate (Royal Blue &amp; Charcoal)</option>
+                  <option value="professional_tally">📊 Professional Tally Style (High Density Compact)</option>
+                  <option value="professional_minimalist">🖨️ Professional Minimalist (B&amp;W Laser Print Ready)</option>
                 </select>
               </div>
 

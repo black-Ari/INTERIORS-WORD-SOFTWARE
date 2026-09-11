@@ -4,28 +4,26 @@ import qrcode from 'qrcode';
 
 /**
  * Generate QR code SVG Data URI using the robust 'qrcode' npm library.
- * Zero custom Reed-Solomon bugs, 100% compliant with scanner apps.
+ * Uses ISO/IEC 18004 compliant 4-module quiet zone and crisp vector edges
+ * so all phone camera scanners (PhonePe, Google Pay, Paytm, BHIM) detect it instantly.
  */
-function qrToSvgDataUri(text, moduleSize = 4, margin = 1) {
+function qrToSvgDataUri(text, margin = 4) {
   if (!text) return '';
   try {
     const qr = qrcode.create(text, { errorCorrectionLevel: 'M' });
     const size = qr.modules.size;
-    const data = qr.modules.data;
-    const totalSize = (size + margin * 2) * moduleSize;
+    const total = size + margin * 2;
 
-    let paths = '';
+    let d = '';
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
-        if (data[r * size + c]) {
-          const x = (c + margin) * moduleSize;
-          const y = (r + margin) * moduleSize;
-          paths += `<rect x="${x}" y="${y}" width="${moduleSize}" height="${moduleSize}"/>`;
+        if (qr.modules.get(r, c)) {
+          d += `M${c + margin} ${r + margin}h1v1h-1z `;
         }
       }
     }
 
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalSize} ${totalSize}" width="${totalSize}" height="${totalSize}"><rect width="${totalSize}" height="${totalSize}" fill="#fff"/><g fill="#000">${paths}</g></svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" width="100%" height="100%" shape-rendering="crispEdges"><rect width="${total}" height="${total}" fill="#ffffff"/><path fill="#000000" d="${d}"/></svg>`;
     const base64 = Buffer.from(svg).toString('base64');
     return `data:image/svg+xml;base64,${base64}`;
   } catch (e) {
@@ -35,25 +33,40 @@ function qrToSvgDataUri(text, moduleSize = 4, margin = 1) {
 }
 
 /**
- * Generate a UPI payment QR code as an SVG data URI.
- * @param {object} opts - { upiId, name, amount }
+ * Generate a standard Indian NPCI UPI payment QR code as an SVG data URI.
+ * @param {object} opts - { upiId, name, amount, voucherNumber }
  * @returns {string} SVG data URI or empty string if upiId is missing
  */
 function generateUPIQR(opts) {
-  const { upiId, name, amount } = opts || {};
+  const { upiId, name, amount, voucherNumber } = opts || {};
   if (!upiId || !String(upiId).trim()) return '';
 
-  // IMPORTANT: Do NOT encodeURIComponent on upiId itself because NPCI scanners expect pa=someone@bank plain
-  const cleanUpiId = String(upiId).trim();
-  const cleanName = encodeURIComponent((name || 'Payment').trim());
-  let upiString = `upi://pay?pa=${cleanUpiId}&pn=${cleanName}&cu=INR`;
-
-  try {
-    return qrToSvgDataUri(upiString, 4, 1);
-  } catch (e) {
-    console.error('QR generation failed:', e.message);
-    return '';
+  let cleanUpiId = String(upiId).trim();
+  // Auto-detect if user entered just a 10-digit mobile number without a VPA handle
+  if (/^\d{10}$/.test(cleanUpiId)) {
+    cleanUpiId = `${cleanUpiId}@upi`;
   }
+
+  // Payee name formatted safely for NPCI scanners
+  const cleanName = (name || 'Merchant').trim().replace(/[^a-zA-Z0-9\s]/g, '').trim() || 'Merchant';
+  const encodedName = encodeURIComponent(cleanName);
+
+  let upiString = `upi://pay?pa=${cleanUpiId}&pn=${encodedName}&cu=INR`;
+
+  const numAmount = Number(amount);
+  if (!isNaN(numAmount) && numAmount > 0) {
+    upiString += `&am=${numAmount.toFixed(2)}`;
+  }
+
+  if (voucherNumber && String(voucherNumber).trim()) {
+    const cleanNote = String(voucherNumber).trim().replace(/[^a-zA-Z0-9\-\/]/g, '');
+    if (cleanNote) {
+      upiString += `&tn=Invoice%20${encodeURIComponent(cleanNote)}`;
+    }
+  }
+
+  return qrToSvgDataUri(upiString, 4);
 }
 
 export { generateUPIQR, qrToSvgDataUri };
+
